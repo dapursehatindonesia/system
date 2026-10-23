@@ -62,7 +62,7 @@ input{background:var(--field);border:1px solid var(--line);border-radius:12px;pa
   <section class="card" id="vLogin" hidden>
     <div id="loginMsg" role="alert"></div>
     <form id="loginForm" novalidate>
-      <label>Username<input id="uName" autocomplete="username" autocapitalize="none" spellcheck="false" inputmode="text" placeholder="contoh: ade.ferdiansyah"></label>
+      <label>Username atau email<input id="uName" autocomplete="username" autocapitalize="none" spellcheck="false" inputmode="email" placeholder="contoh: ade.ferdiansyah"></label>
       <label>Password<span class="pw"><input id="uPass" type="password" autocomplete="current-password"><button type="button" id="togglePw" aria-label="Tampilkan password">Lihat</button></span></label>
       <button class="btn" id="loginBtn" type="submit">Masuk</button>
     </form>
@@ -146,14 +146,14 @@ $('#togglePw').onclick = () => { const i = $('#uPass'), show = i.type === 'passw
 $('#loginForm').onsubmit = async e => {
   e.preventDefault();
   const u = $('#uName').value.trim().toLowerCase(), p = $('#uPass').value;
-  if (!/^[a-z0-9._-]{4,40}$/.test(u)) return msg('#loginMsg', 'Username 4–40 karakter: huruf kecil, angka, titik, garis bawah, atau strip.');
+  if (u.includes('@') ? !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u) : !/^[a-z0-9._-]{4,40}$/.test(u)) return msg('#loginMsg', u.includes('@') ? 'Format email tidak valid.' : 'Username 4–40 karakter: huruf kecil, angka, titik, garis bawah, atau strip.');
   if (!p) return msg('#loginMsg', 'Isi password.');
   const b = $('#loginBtn'); b.disabled = true; b.textContent = 'Memeriksa…'; msg('#loginMsg', '');
   const { data, error } = await sb.auth.signInWithPassword({ email: toEmail(u), password: p });
   b.disabled = false; b.textContent = 'Masuk';
   if (error) {
     const m = error.status === 429 ? 'Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.'
-      : /invalid login credentials/i.test(error.message) ? 'Username atau password salah.'
+      : /invalid login credentials/i.test(error.message) ? 'Username/email atau password salah.'
       : /fetch|network/i.test(error.message) ? 'Tidak bisa terhubung. Periksa koneksi internet.'
       : 'Gagal masuk: ' + error.message;
     return msg('#loginMsg', m);
