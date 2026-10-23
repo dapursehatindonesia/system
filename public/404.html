@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Halaman tidak ditemukan · Healthy Go</title>
+<style>
+:root{--hg-deep:#04331f;--hg:#074b34;--sun:#f3cf1b;--bg:#f4f6f1;--card:#fff;--ink:#13241c;--muted:#5d6e65;--line:#dde6df;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1a15;--card:#16241d;--ink:#e6efe9;--muted:#9db0a5;--line:#2a3c33;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);text-align:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:32px 24px;max-width:420px;width:100%}
+.logo{width:56px;height:56px;border-radius:16px;background:var(--sun);color:var(--hg-deep);display:grid;place-items:center;font-weight:800;font-size:20px;margin:0 auto 16px}
+h1{margin:0 0 8px;font-size:22px}p{margin:0 0 20px;color:var(--muted);line-height:1.5}
+code{font-size:13px;word-break:break-all}
+a{display:inline-block;background:var(--hg);color:#fff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px}
+a:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="logo" aria-hidden="true">HG</div>
+  <h1>Halaman tidak ditemukan</h1>
+  <p>Alamat <code id="path"></code> tidak ada atau aplikasinya belum tersedia.</p>
+  <a href="/?portal=1">Kembali ke portal</a>
+</main>
+<script>document.getElementById('path').textContent = location.pathname;</script>
+</body>
+</html>
