@@ -18,8 +18,12 @@
     auth: { persistSession: true, autoRefreshToken: true, storageKey: 'hg-auth' }
   });
 
-  /** Ubah username menjadi email internal untuk Supabase Auth. */
-  const toEmail = username => String(username || '').trim().toLowerCase() + '@' + HG.LOGIN_DOMAIN;
+  /** Login bisa pakai username (kurir/staf) atau email asli (admin).
+      Username diubah menjadi email internal "<username>@<LOGIN_DOMAIN>". */
+  const toEmail = input => {
+    const v = String(input || '').trim().toLowerCase();
+    return v.includes('@') ? v : v + '@' + HG.LOGIN_DOMAIN;
+  };
 
   /** Alamat tujuan setelah login hanya boleh path di situs ini (cegah redirect ke situs lain). */
   function safeNext(next) {
