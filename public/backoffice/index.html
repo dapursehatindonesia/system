@@ -327,7 +327,7 @@ async function loadAll() {
     q(sb.from('role_app_access').select('*')),
     q(sb.from('role_landing').select('*')),
     q(sb.from('user_app_exceptions').select('*').order('created_at', { ascending: false })),
-    q(sb.from('profiles').select('id, nama, username, division_id, position_id, kontrak, aktif, created_at').order('nama'))
+    q(sb.from('profiles').select('id, nama, username, email, division_id, position_id, kontrak, aktif, created_at').order('nama'))
   ]);
   Object.assign(ORG, { divisions: d, positions: p, posDiv: pd, apps: a, access: ra, landing: rl, exceptions: ex, profiles: pr });
 }
@@ -377,9 +377,9 @@ const modalHead = (title, sub) => `<div class="modal-head"><div><h2>${esc(title)
 function showPassword(title, nama, username, pw) {
   openModal(`${modalHead(title, esc(nama))}
   <div class="note">Berikan data login ini ke orangnya, lalu minta ia mengganti password lewat menu <b>Ganti password</b> di portal setelah login. Password ini hanya ditampilkan sekali.</div>
-  <dl class="kv"><dt>Alamat</dt><dd>${esc(location.origin)}</dd><dt>Username</dt><dd>${esc(username)}</dd><dt>Password</dt><dd><code id="pwShow" style="font-size:16px">${esc(pw)}</code></dd></dl>
+  <dl class="kv"><dt>Alamat</dt><dd>${esc(location.origin)}</dd><dt>Login dengan</dt><dd>${esc(username)}</dd><dt>Password</dt><dd><code id="pwShow" style="font-size:16px">${esc(pw)}</code></dd></dl>
   <div class="actions"><button id="pwCopy">Salin data login</button><button class="btn-primary" data-close>Selesai</button></div>`);
-  $('#pwCopy').onclick = () => navigator.clipboard.writeText(`Login Healthy Go\nAlamat: ${location.origin}\nUsername: ${username}\nPassword: ${pw}`).then(() => toast('Data login disalin.'), () => toast('Gagal menyalin, catat manual.', true));
+  $('#pwCopy').onclick = () => navigator.clipboard.writeText(`Login Healthy Go\nAlamat: ${location.origin}\nLogin dengan: ${username}\nPassword: ${pw}`).then(() => toast('Data login disalin.'), () => toast('Gagal menyalin, catat manual.', true));
 }
 
 const NAV = [['akun', 'Akun'], ['matriks', 'Matriks akses'], ['pengecualian', 'Pengecualian'], ['master', 'Master data'], ['laporan', 'Laporan SDM'], ['riwayat', 'Riwayat aktivitas']];
@@ -388,7 +388,7 @@ const NAV = [['akun', 'Akun'], ['matriks', 'Matriks akses'], ['pengecualian', 'P
 const AF = { q: '', divisi: '', jabatan: '', status: 'aktif' };
 function pageAkun(v) {
   v.innerHTML = `<div class="card"><div class="row">
-    <label class="f grow"><span>Cari</span><input id="aQ" value="${esc(AF.q)}" placeholder="Nama atau username"></label>
+    <label class="f grow"><span>Cari</span><input id="aQ" value="${esc(AF.q)}" placeholder="Nama, username, atau email"></label>
     <label class="f"><span>Divisi</span><select id="aDiv"><option value="">Semua divisi</option>${ORG.divisions.map(d => opt(d.id, d.nama, AF.divisi)).join('')}<option value="-" ${AF.divisi === '-' ? 'selected' : ''}>Lintas divisi</option></select></label>
     <label class="f"><span>Jabatan</span><select id="aJab"><option value="">Semua jabatan</option>${ORG.positions.map(j => opt(j.id, j.nama, AF.jabatan)).join('')}</select></label>
     <label class="f"><span>Status</span><select id="aSt">${[['aktif', 'Aktif'], ['nonaktif', 'Nonaktif'], ['', 'Semua']].map(([k, l]) => opt(k, l, AF.status)).join('')}</select></label>
@@ -397,10 +397,10 @@ function pageAkun(v) {
   const draw = () => {
     AF.q = $('#aQ').value; AF.divisi = $('#aDiv').value; AF.jabatan = $('#aJab').value; AF.status = $('#aSt').value;
     const qq = normName(AF.q);
-    const rows = ORG.profiles.filter(p => (!AF.divisi || (AF.divisi === '-' ? !p.division_id : p.division_id === AF.divisi)) && (!AF.jabatan || p.position_id === AF.jabatan) && (!AF.status || (AF.status === 'aktif') === p.aktif) && (!qq || normName(p.nama).includes(qq) || p.username.includes(qq)))
+    const rows = ORG.profiles.filter(p => (!AF.divisi || (AF.divisi === '-' ? !p.division_id : p.division_id === AF.divisi)) && (!AF.jabatan || p.position_id === AF.jabatan) && (!AF.status || (AF.status === 'aktif') === p.aktif) && (!qq || normName(p.nama).includes(qq) || p.username.includes(qq) || (p.email || '').includes(qq)))
       .map(p => ({ ...p, divNama: p.division_id ? div(p.division_id).nama : 'Semua divisi', jabNama: pos(p.position_id).nama || p.position_id, apps: appsUser(p), landing: landingUser(p) }));
     const cols = [
-      { key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama)}</b>${r.id === ME.id ? ' <span class="chip c-info">Anda</span>' : ''}<br><span class="small muted">${esc(r.username)}</span>` },
+      { key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama)}</b>${r.id === ME.id ? ' <span class="chip c-info">Anda</span>' : ''}<br><span class="small muted">${esc(r.username)}${r.email ? ' · ' + esc(r.email) : ''}</span>` },
       { key: 'divNama', label: 'Divisi', render: r => divLabel(r.division_id) },
       { key: 'jabNama', label: 'Jabatan' },
       { key: 'kontrak', label: 'Kontrak', render: r => esc(r.kontrak) || '<span class="muted">—</span>' },
@@ -415,7 +415,7 @@ function pageAkun(v) {
     $('#aOut').querySelectorAll('[data-reset]').forEach(b => b.onclick = () => {
       const p = prof(b.dataset.reset);
       if (!confirm('Reset password ' + p.nama + '? Password lama tidak berlaku lagi.')) return;
-      run(b, async () => { const r = await fnAkun({ action: 'reset_password', id: p.id }); showPassword('Password baru', p.nama, p.username, r.password_sementara); });
+      run(b, async () => { const r = await fnAkun({ action: 'reset_password', id: p.id }); showPassword('Password baru', p.nama, p.username + (p.email ? ' atau ' + p.email : ''), r.password_sementara); });
     });
     $('#aOut').querySelectorAll('[data-akt]').forEach(b => b.onclick = () => {
       const p = prof(b.dataset.akt);
@@ -427,7 +427,7 @@ function pageAkun(v) {
   $('#aAdd').onclick = () => akunForm(null, draw); draw();
 }
 function akunForm(id, after) {
-  const p = id ? prof(id) : { nama: '', username: '', division_id: '', position_id: '', kontrak: '' };
+  const p = id ? prof(id) : { nama: '', username: '', email: '', division_id: '', position_id: '', kontrak: '' };
   openModal(`${modalHead(id ? 'Ubah akun' : 'Tambah akun', id ? '' : 'Kosongkan password untuk dibuatkan password sementara otomatis.')}
   <div class="form-grid">
     <label class="f"><span>Nama lengkap</span><input id="fNama" value="${esc(p.nama)}" placeholder="Sama persis dengan di spreadsheet"></label>
@@ -435,8 +435,8 @@ function akunForm(id, after) {
     <label class="f"><span>Jabatan</span><select id="fJab"><option value="">Pilih jabatan</option>${ORG.positions.map(j => opt(j.id, j.nama + (j.cakupan === 'semua' ? ' (semua divisi)' : ''), p.position_id)).join('')}</select></label>
     <label class="f" id="fDivWrap"><span>Divisi</span><select id="fDiv"></select></label>
     <label class="f"><span>Kontrak</span><select id="fKon"><option value="">—</option>${['Full Time', 'Part Time'].map(k => opt(k, k, p.kontrak)).join('')}</select></label>
-    ${id ? '' : `<label class="f"><span>Email asli (opsional)</span><input id="fEmail" type="email" placeholder="Untuk admin; kurir kosongkan"></label>
-    <label class="f"><span>Password (opsional)</span><input id="fPw" type="text" placeholder="Min. 8 karakter"></label>`}
+    <label class="f"><span>Email (opsional)</span><input id="fEmail" type="email" value="${esc(p.email || '')}" placeholder="Bisa dipakai untuk login"></label>
+    ${id ? '' : `<label class="f"><span>Password (opsional)</span><input id="fPw" type="text" placeholder="Min. 8 karakter"></label>`}
   </div>
   <div class="note" id="fPrev" style="margin:14px 0 0"></div>
   <div class="actions"><button data-close>Batal</button><button class="btn-primary" id="fSave">${id ? 'Simpan perubahan' : 'Buat akun'}</button></div>`);
@@ -454,13 +454,13 @@ function akunForm(id, after) {
     const j = pos($('#fJab').value);
     if (!j.id) throw new Error('Pilih jabatan.');
     if (j.cakupan === 'divisi' && !$('#fDiv').value) throw new Error('Pilih divisi.');
-    const body = { nama: $('#fNama').value, username: $('#fUser').value.trim().toLowerCase(), position_id: j.id, division_id: j.cakupan === 'semua' ? null : $('#fDiv').value, kontrak: $('#fKon').value || null };
+    const body = { nama: $('#fNama').value, username: $('#fUser').value.trim().toLowerCase(), position_id: j.id, division_id: j.cakupan === 'semua' ? null : $('#fDiv').value, kontrak: $('#fKon').value || null, email: $('#fEmail').value.trim().toLowerCase() || null };
     if (id) {
       await fnAkun({ action: 'update', id, ...body }); await loadAll(); closeModal(); toast('Akun diperbarui.'); after();
     } else {
-      const r = await fnAkun({ action: 'create', ...body, email: $('#fEmail').value.trim() || undefined, password: $('#fPw').value || undefined });
+      const r = await fnAkun({ action: 'create', ...body, password: $('#fPw').value || undefined });
       await loadAll(); after();
-      if (r.password_sementara) showPassword('Akun dibuat', body.nama, body.username, r.password_sementara);
+      if (r.password_sementara) showPassword('Akun dibuat', body.nama, body.username + (body.email ? ' atau ' + body.email : ''), r.password_sementara);
       else { closeModal(); toast('Akun ' + body.nama + ' dibuat.'); }
     }
   });
