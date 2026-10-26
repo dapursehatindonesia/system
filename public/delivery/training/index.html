@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#074b34">
+<title>Delivery Learning Management System · Healthy Go</title>
+<link rel="icon" type="image/png" href="logo_hg_hijau_cut.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=20261021-ui2">
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar" aria-label="Menu utama">
+  <div class="sidehead">
+    <img class="hg-logo" src="logo%20hg%20putih_cut.png" alt="Healthy Go">
+    <div><b>Learning Management System</b><span>Dept Delivery</span></div>
+    <button class="sideclose" id="closeNav" type="button" aria-label="Tutup menu">×</button>
+  </div>
+  <nav class="side-nav">
+    <button class="nav active" data-target="home" data-title="Home">
+      <svg viewBox="0 0 24 24"><path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/></svg><span>Home</span>
+    </button>
+    <button class="nav" data-target="gallery" data-title="Gallery">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg><span>Gallery</span>
+    </button>
+    <button class="nav" data-target="modules" data-title="Modul Training">
+      <svg viewBox="0 0 24 24"><path d="M4 5.5C6.5 4.5 9.5 4.5 12 6c2.5-1.5 5.5-1.5 8-.5V19c-2.5-1-5.5-1-8 .5-2.5-1.5-5.5-1.5-8-.5z"/><path d="M12 6v13.5"/></svg><span>Modules</span>
+    </button>
+    <button class="nav" data-target="cases" data-title="Studi Kasus">
+      <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3z"/></svg><span>Cases</span>
+    </button>
+    <button class="nav" data-target="quiz" data-title="Quiz Training">
+      <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg><span>Quiz</span>
+    </button>
+    <button class="nav" data-target="refreshment" data-title="Refreshment">
+      <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v4.5h-4.5"/></svg><span>Refreshment</span>
+    </button>
+    <button class="nav" data-target="qna" data-title="Ask Trainer">
+      <svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-4.5 3.5V17H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M9.8 9.3a2.3 2.3 0 1 1 3.2 2.1c-.6.3-1 .8-1 1.4"/><path d="M12 14.6v.1"/></svg><span>Ask Trainer</span>
+    </button>
+  </nav>
+  <div class="sidefoot">
+    <b>Healthy Go</b>
+    <span>Learn, practice, improve.</span>
+  </div>
+</aside>
+<div class="scrim" id="scrim"></div>
+
+<div class="shell">
+  <header class="topbar">
+    <button class="menu-btn" id="openNav" type="button" aria-label="Buka menu" aria-controls="sidebar" aria-expanded="false">
+      <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <img class="brandmini" src="logo_hg_hijau_cut.png" alt="Healthy Go">
+    <h1 id="pageTitle">Home</h1>
+    <span class="topchip">Dept Delivery</span>
+  </header>
+
+<main>
+  <section id="home" class="section home-section active-section">
+    <div class="hero">
+      <div class="hero-copy">
+        <p class="hero-kicker">Delivery Learning Management System</p>
+        <h2 class="hero-title">Belajar untuk bekerja lebih baik.</h2>
+        <p class="hero-lead">Akses modul training, pelajari studi kasus, dan uji pemahaman melalui kuis berdasarkan role operasional.</p>
+        <div class="hero-actions">
+          <button class="primary" data-target="modules">Mulai belajar</button>
+          <button class="hero-ghost" data-target="cases">Lihat studi kasus</button>
+        </div>
+      </div>
+
+      <ol class="hero-flow" aria-label="Alur training">
+        <li><button data-target="modules"><b>1</b><span><strong>Materi modul</strong><small>Pelajari SOP per role</small></span></button></li>
+        <li><button data-target="cases"><b>2</b><span><strong>Studi kasus</strong><small>Situasi nyata & penyelesaian</small></span></button></li>
+        <li><button data-target="quiz"><b>3</b><span><strong>Kuis</strong><small>Latihan pemahaman</small></span></button></li>
+        <li><button data-target="refreshment"><b>4</b><span><strong>Refreshment</strong><small>Evaluasi berkala</small></span></button></li>
+        <li><button data-target="qna"><b>5</b><span><strong>Tanya trainer</strong><small>Ajukan pertanyaan</small></span></button></li>
+      </ol>
+    </div>
+
+    <div class="home-roles">
+      <h3 class="block-title">Role operasional</h3>
+      <div class="strip" id="roleStrip"></div>
+    </div>
+  </section>
+
+  <section id="modules" class="section">
+    <div class="heading">
+      <h2>Daftar Modul Training</h2>
+      <p>Pilih modul sesuai role kamu. Modul terbuka di tab baru.</p>
+    </div>
+    <div class="cards" id="moduleCards"></div>
+  </section>
+
+  <section id="cases" class="section">
+    <div class="heading">
+      <h2>Studi Kasus & Penyelesaian</h2>
+      <p>Pilih role. Baca situasi, pahami penjelasan singkat, lalu buka penyelesaiannya bila diperlukan. Semua SDM <b>wajib</b> paham.</p>
+    </div>
+    <div class="toolbar">
+      <span class="case-tabs-label">Pilih section</span>
+      <div class="tabs" id="caseTabs"></div>
+    </div>
+    <div id="caseContentLabel" class="case-library-label">WEEKLY CASES</div>
+    <div id="weeklyCaseWrap" class="case-list"></div>
+    <div id="caseList" class="case-list"></div>
+  </section>
+
+  <section id="quiz" class="section">
+    <div class="heading">
+      <h2>Quiz Training</h2>
+      <p>Pilih role, jawab soal, lalu lihat jawaban dan penjelasannya. Kuis ini untuk latihan dan tidak dinilai.</p>
+    </div>
+    <div class="tabs" id="quizTabs"></div>
+    <div class="quiz-summary">
+      <div class="quiz-summary-row"><b id="quizRoleLabel">KORLAP</b><span id="quizScore">0 / 10 benar</span></div>
+      <div class="quiz-meter" aria-hidden="true"><i id="quizMeter"></i></div>
+    </div>
+    <div id="quizList" class="quiz-list"></div>
+  </section>
+
+  <section id="refreshment" class="section">
+    <div class="heading">
+      <h2>Refreshment Training</h2>
+      <p>Info pengerjaan dan update refreshment akan diinfokan di grup.</p>
+    </div>
+
+    <div class="refreshment-date-card">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <div>
+        <span>Tanggal refreshment</span>
+        <strong id="refreshmentDateLabel">-</strong>
+      </div>
+    </div>
+
+    <div id="refreshmentStartPanel" class="form-card">
+      <h3 class="form-title">Data peserta</h3>
+      <div class="form-grid">
+        <label>
+          <span>Nama</span>
+          <input id="refreshmentName" type="text" maxlength="120" placeholder="Masukkan nama">
+        </label>
+
+        <label>
+          <span>Role</span>
+          <select id="refreshmentRole"></select>
+        </label>
+
+        <label>
+          <span>Kode Warna</span>
+          <input id="refreshmentColorCode" type="text" maxlength="60" placeholder="Masukkan kode warna">
+        </label>
+      </div>
+
+      <p id="refreshmentSetupNote" class="form-note"></p>
+      <button id="startRefreshmentBtn" class="primary">Mulai refreshment</button>
+    </div>
+
+    <div id="refreshmentQuizPanel" class="refreshment-quiz-panel hidden-panel">
+      <div class="refreshment-progress" id="refreshmentProgress"></div>
+      <div id="refreshmentList" class="quiz-list"></div>
+
+      <div class="refreshment-actions">
+        <button id="submitRefreshmentBtn" class="primary">Submit jawaban</button>
+      </div>
+
+      <div id="refreshmentResult" class="result-card hidden-panel"></div>
+    </div>
+  </section>
+
+  <section id="gallery" class="section">
+    <div class="heading">
+      <h2>Gallery</h2>
+      <p>Apresiasi, momen terbaik, dan best practice dari tim Delivery.</p>
+    </div>
+    <div class="gallery-tabs" id="galleryTabs"></div>
+    <div class="gallery-grid" id="galleryGrid"></div>
+  </section>
+
+  <section id="qna" class="section">
+    <div class="heading">
+      <h2>Tanya Jawab</h2>
+      <p>Ajukan pertanyaan seputar pekerjaan atau training. Jawaban dari trainer akan tampil di sini.</p>
+    </div>
+
+    <div class="qna-layout">
+      <div class="form-card qna-form">
+        <div class="qna-form-head">
+          <h3>Ajukan pertanyaan</h3>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            <span>Nama</span>
+            <input id="qnaName" type="text" maxlength="120" placeholder="Masukkan nama">
+          </label>
+
+          <label>
+            <span>Role</span>
+            <select id="qnaRole"></select>
+          </label>
+        </div>
+
+        <label>
+          <span>Pertanyaan</span>
+          <textarea id="qnaQuestion" maxlength="1000" placeholder="Tulis pertanyaan kamu..."></textarea>
+        </label>
+
+        <div class="form-actions">
+          <button id="qnaSubmitBtn" class="primary">Kirim pertanyaan</button>
+          <button id="qnaRefreshBtn" class="ghost" type="button">↻ Refresh</button>
+        </div>
+
+        <p id="qnaFormMessage" class="form-note"></p>
+      </div>
+
+      <div class="qna-list-wrap">
+        <div class="qna-list-head">
+          <h3>Pertanyaan & jawaban</h3>
+          <select id="qnaFilterRole" class="qna-filter" aria-label="Filter role"></select>
+        </div>
+        <div id="qnaList" class="qna-list"></div>
+      </div>
+    </div>
+  </section>
+
+<footer><span>Healthy Go · Delivery Learning Management System</span><span>© 2026</span></footer>
+
+<button class="trainer-fab" id="chatAiFab" type="button" aria-label="Chat AI">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-4.5 3.5V17H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></svg>
+  <span>Chat AI</span>
+</button>
+
+<div id="chatAiModal" class="chat-ai-modal" aria-hidden="true">
+  <div class="chat-ai-backdrop" data-chat-ai-close></div>
+  <div class="chat-ai-panel" role="dialog" aria-modal="true" aria-labelledby="chatAiTitle">
+    <div class="chat-ai-head">
+      <div class="chat-ai-avatar" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 3v3M5 9.5A2.5 2.5 0 0 1 7.5 7h9A2.5 2.5 0 0 1 19 9.5v7a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 16.5z"/><path d="M9.5 13h.01M14.5 13h.01"/></svg>
+      </div>
+      <div class="chat-ai-titles">
+        <h3 id="chatAiTitle">Training Assistant</h3>
+        <p>Catering, packing, shipment, delivery, dan operasional training.</p>
+      </div>
+      <button class="chat-ai-close" type="button" data-chat-ai-close aria-label="Tutup">×</button>
+    </div>
+    <div id="chatAiMessages" class="chat-ai-messages" aria-live="polite"></div>
+    <form id="chatAiForm" class="chat-ai-form">
+      <textarea id="chatAiInput" maxlength="1200" rows="2" placeholder="Tulis pertanyaan kamu..."></textarea>
+      <button id="chatAiSend" class="primary" type="submit">Kirim</button>
+    </form>
+    <p id="chatAiStatus" class="form-note"></p>
+  </div>
+</div>
+</main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/shared/config.js"></script>
+<script src="/shared/auth.js"></script>
+<script src="data.js?v=20261009-rolechat1"></script>
+<!-- script.js & ui.js dimuat oleh lms-auth.js setelah login dipastikan -->
+<script src="lms-auth.js?v=20261026"></script>
+</body>
+</html>
