@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Backoffice · Healthy Go</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+
+:root{--hg:#074b34;--hg-deep:#04331f;--hg-700:#0b5e41;--hg-500:#1d8a5b;--hg-100:#e3f1e8;--hg-50:#f1f7f3;--sun:#f3cf1b;
+--bg:#f4f6f1;--card:#fff;--ink:#13241c;--muted:#5d6e65;--line:#dde6df;--field:#fff;
+--ok:#167a43;--ok-bg:#e2f4e8;--warn:#9a5b00;--warn-bg:#fff2d3;--bad:#b4281c;--bad-bg:#fde7e4;--info:#1f5f99;--info-bg:#e6f0fb;
+--radius:14px;--side:264px;color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a15;--card:#16241d;--ink:#e6efe9;--muted:#9db0a5;--line:#2a3c33;--field:#1b2c24;
+--hg-100:#1d3a2c;--hg-50:#18291f;--ok:#5fd08f;--ok-bg:#183a27;--warn:#f0b54a;--warn-bg:#3a2d12;--bad:#f2877b;--bad-bg:#3e1d19;--info:#8bbcf0;--info-bg:#18293d;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1a15;--card:#16241d;--ink:#e6efe9;--muted:#9db0a5;--line:#2a3c33;--field:#1b2c24;
+--hg-100:#1d3a2c;--hg-50:#18291f;--ok:#5fd08f;--ok-bg:#183a27;--warn:#f0b54a;--warn-bg:#3a2d12;--bad:#f2877b;--bad-bg:#3e1d19;--info:#8bbcf0;--info-bg:#18293d;color-scheme:dark}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 14px;font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.btn-primary{background:var(--hg);border-color:var(--hg);color:#fff}
+.btn-primary:hover{background:var(--hg-700)}
+.btn-soft{background:var(--hg-50);border-color:var(--hg-100)}
+.btn-danger{background:var(--bad-bg);border-color:transparent;color:var(--bad)}
+.btn-sm{padding:5px 10px;font-size:13px;border-radius:8px}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{background:var(--field);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted)}
+label.f>input,label.f>select,label.f>textarea{color:var(--ink);font-weight:500;font-size:15px}
+
+/* Prototype bar */
+.proto{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:center;padding:7px 14px;background:var(--sun);color:#3b3000;font-size:13px;font-weight:600}
+.proto select{padding:3px 8px;border-radius:8px;border:1px solid #c9a900;background:#fff8d6;color:#3b3000}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--sun)}
+
+/* Layout */
+.shell{display:grid;grid-template-columns:var(--side) 1fr;min-height:100vh}
+.side{background:var(--hg-deep);color:#e8f3ec;display:flex;flex-direction:column;padding:18px 14px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{display:flex;gap:10px;align-items:center;padding:4px 8px 18px}
+.brand-mark{width:38px;height:38px;border-radius:11px;background:var(--sun);color:var(--hg-deep);display:grid;place-items:center;font-weight:800;font-size:15px}
+.brand b{display:block;font-size:15px}.brand small{color:#a9c9b6;font-size:12px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:#d6e9dd;text-decoration:none;font-weight:600;font-size:14px}
+.nav a:hover{background:rgba(255,255,255,.07)}
+.nav a.active{background:var(--hg-700);color:#fff;box-shadow:inset 3px 0 0 var(--sun)}
+.nav .grp{margin:14px 12px 4px;font-size:12px;color:#8fb59e;font-weight:600}
+.side-foot{margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;gap:2px}
+.side-foot a{color:#cfe4d7;text-decoration:none;font-size:13px;padding:7px 12px;border-radius:8px}
+.side-foot a:hover{background:rgba(255,255,255,.07)}
+.me{padding:10px 12px;font-size:13px;color:#a9c9b6}.me b{color:#fff;display:block;font-size:14px}
+main{min-width:0;padding:22px clamp(14px,3vw,34px) 60px}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.top h1{margin:0;font-size:24px;letter-spacing:-.01em}
+.menu-btn{display:none}
+.scrim{display:none}
+
+/* Components */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+.card+.card{margin-top:16px}
+.card h2{margin:0 0 4px;font-size:17px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.grow{flex:1 1 180px}
+.tabs{display:inline-flex;gap:4px;padding:4px;background:var(--hg-50);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;flex-wrap:wrap}
+.tabs button{border:0;background:transparent;padding:7px 14px;border-radius:9px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{background:var(--hg-50);font-size:12.5px;color:var(--muted);font-weight:700;position:sticky;top:0;z-index:2}
+.tbl-scroll{overflow:auto}
+.th-sort{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:none;border:0;padding:0;border-radius:4px;font:inherit;font-weight:700;color:inherit;text-align:left}
+th.num .th-sort span:first-child{margin-left:auto}
+.th-sort:hover{color:var(--ink)}
+.arr{font-size:9px;color:var(--hg-500);letter-spacing:-1px}.arr.idle{color:var(--line);font-size:8px}
+.th-sort:hover .arr.idle{color:var(--muted)}
+th[aria-sort="ascending"],th[aria-sort="descending"]{color:var(--ink)}
+td.wrap{white-space:normal;min-width:260px;max-width:420px}
+.freeze td:first-child,.freeze th:first-child{position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--line)}
+.freeze th:first-child{z-index:3;background:var(--hg-50)}
+tr.click:hover td{background:var(--hg-50)}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--hg-50)}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.c-ok{background:var(--ok-bg);color:var(--ok)}.c-warn{background:var(--warn-bg);color:var(--warn)}.c-bad{background:var(--bad-bg);color:var(--bad)}.c-info{background:var(--info-bg);color:var(--info)}.c-mute{background:var(--hg-50);color:var(--muted);border:1px solid var(--line)}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+
+/* Dashboard */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.kpi span{display:block;font-size:13px;color:var(--muted);font-weight:600}
+.kpi b{display:block;font-size:26px;letter-spacing:-.02em;margin-top:2px;font-variant-numeric:tabular-nums}
+.kpi small{color:var(--muted);font-size:12px}
+.kpi.lead{background:var(--hg);border-color:var(--hg);color:#fff}.kpi.lead span,.kpi.lead small{color:#bfe0cc}
+.bars{display:flex;flex-direction:column;gap:8px}
+.bar{display:grid;grid-template-columns:110px 1fr 170px;gap:10px;align-items:center;font-size:13.5px}
+.bar-track{height:12px;background:var(--hg-50);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.bar-fill{height:100%;background:var(--hg-500);border-radius:999px}
+.bar-fill.w{background:var(--warn)}.bar-fill.b{background:var(--bad)}
+.pct{display:inline-block;min-width:46px}
+.filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.ms{position:relative}
+.ms-btn{width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;font-weight:500;background:var(--field);padding:7px 30px 7px 12px;position:relative}
+.ms-btn::after{content:"▾";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.ms-btn[aria-expanded="true"]{border-color:var(--hg-500)}
+.ms-lbl{font-size:12px;color:var(--muted);font-weight:600}
+.ms-val{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.ms-pop{position:absolute;z-index:25;top:calc(100% + 4px);left:0;min-width:100%;width:max-content;max-width:min(320px,86vw);background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:8px}
+.ms-list{max-height:270px;overflow:auto;display:flex;flex-direction:column}
+.ms-list label{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:14px}
+.ms-list label:hover{background:var(--hg-50)}
+.ms-q{width:100%;margin-bottom:6px}
+.ms-foot{border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr));gap:16px}
+.charts .card{margin:0}
+.bar-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-fill.i{background:var(--info)}
+.pie{display:flex;flex-wrap:wrap;gap:18px;align-items:center}
+.pie-n{font-size:18px;font-weight:800;fill:var(--ink)}.pie-l{font-size:12px;fill:var(--muted)}
+.pie-legend{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14px;flex:1 1 160px}
+.pie-legend li{display:grid;grid-template-columns:12px 1fr auto auto;gap:8px;align-items:center}
+.sw{width:12px;height:12px;border-radius:4px}
+.absen{display:grid;grid-template-columns:minmax(0,420px) 1fr;gap:22px;align-items:start}
+.cam-box{position:relative;aspect-ratio:4/3;background:#0b1712;border-radius:14px;overflow:hidden}
+.cam-box video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.cam-msg{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;color:#dfeee5;font-size:14px}
+.lok{margin-top:14px;padding:10px 14px;border-radius:12px;font-size:14px;font-weight:600}
+.lok-ok{background:var(--ok-bg);color:var(--ok)}.lok-bad{background:var(--bad-bg);color:var(--bad)}.lok-warn{background:var(--warn-bg);color:var(--warn)}.lok-info{background:var(--info-bg);color:var(--info)}
+.uji{margin-top:16px;font-size:13px;color:var(--muted)}.uji summary{cursor:pointer;font-weight:600}
+.toplist{margin:6px 0 0;padding-left:18px;font-size:13.5px}.toplist li{margin:2px 0}.toplist em{font-style:normal;font-weight:700;color:var(--bad);margin-left:4px}
+
+/* Penilaian */
+.grp-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin:20px 0 10px}
+.grp-head h3{margin:0;font-size:16px}
+.pn select{padding:5px 6px;font-size:13.5px;border-radius:8px}
+.pn td{vertical-align:top}
+.ref{display:block;margin-top:4px}
+.legend{display:flex;flex-wrap:wrap;gap:8px;font-size:12.5px;color:var(--muted);margin:8px 0 0}
+.matrix td,.matrix th{text-align:center}.matrix td:first-child,.matrix th:first-child{text-align:left}
+.dot{display:inline-block;width:12px;height:12px;border-radius:4px}
+.d-done{background:var(--ok)}.d-prog{background:var(--warn)}.d-not{background:var(--line)}
+
+/* Modal & toast */
+.modal{position:fixed;inset:0;z-index:50;display:none;align-items:flex-start;justify-content:center;padding:6vh 14px;background:rgba(5,20,13,.55);overflow:auto}
+.modal.open{display:flex}
+.modal-box{background:var(--card);border-radius:18px;width:min(720px,100%);padding:22px;border:1px solid var(--line)}
+.modal-box h2{margin:0 0 4px;font-size:19px}
+.modal-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+.x{border:0;background:transparent;font-size:22px;line-height:1;padding:4px 8px}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:16px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--hg-deep);color:#fff;padding:10px 18px;border-radius:12px;font-weight:600;font-size:14px;z-index:60;display:none;max-width:90vw}
+.toast.show{display:block}
+.toast.err{background:var(--bad)}
+.receipt{width:100%;max-width:260px;border-radius:12px;border:1px solid var(--line)}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:14px}.kv dt{color:var(--muted)}.kv dd{margin:0;font-weight:600}
+.split{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start}
+.note{background:var(--info-bg);color:var(--info);border-radius:12px;padding:10px 14px;font-size:13.5px;margin-bottom:14px}
+.warnbox{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 14px;font-size:13.5px}
+.big-check{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.clock{font-size:40px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.area-pick{display:flex;flex-wrap:wrap;gap:6px}
+.area-pick label{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:999px;font-size:13.5px;background:var(--field);cursor:pointer}
+.area-pick input{margin:0}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:1fr}
+  .side{position:fixed;left:0;top:0;bottom:0;width:min(290px,86vw);height:auto;z-index:45;transform:translateX(-105%);transition:transform .2s ease;padding-top:calc(18px + env(safe-area-inset-top,0px))}
+  body.nav-open .side{transform:none}
+  body.nav-open .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:44}
+  .menu-btn{display:inline-flex}
+  .top h1{font-size:20px}
+  .bar{grid-template-columns:78px 1fr 112px}
+  .split{grid-template-columns:1fr}
+  .absen{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.mx td,.mx th{text-align:center;vertical-align:middle}.mx td:first-child,.mx th:first-child{text-align:left}
+input.big{width:20px;height:20px;accent-color:var(--hg-500);cursor:pointer}
+code{font-size:13px;background:var(--hg-50);padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
+.brand-mark.bo{background:#fff;color:var(--hg-deep)}
+body::before{background:var(--hg-deep)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side" id="side" aria-label="Menu utama">
+    <div class="brand"><div class="brand-mark bo">BO</div><div><b>Backoffice</b><small>Healthy Go · semua divisi</small></div></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot"><div class="me" id="meBox"></div><a href="/?portal=1">Kembali ke portal</a><a href="#" id="logoutLink">Keluar</a></div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <main><div class="top"><button class="menu-btn" id="menuBtn" aria-label="Buka menu">☰</button><h1 id="pageTitle">Backoffice</h1></div><div id="view"><div class="card empty">Memuat…</div></div></main>
+</div>
+<div class="modal" id="modal" role="dialog" aria-modal="true"><div class="modal-box" id="modalBox"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/shared/config.js"></script>
+<script src="/shared/auth.js"></script>
+<script>
+/* Tabel profesional: header beku, scroll, sort lewat panah di kanan judul kolom */
+const TBL = {};
+function dataTable(id, cols, rows, opt = {}) {
+  const st = TBL[id] || (TBL[id] = { key: opt.sortKey || cols[0].key, dir: opt.sortDir || 'asc' });
+  const col = cols.find(c => c.key === st.key) || cols[0];
+  const val = r => col.sort ? col.sort(r) : r[col.key];
+  const sorted = [...rows].sort((a, b) => {
+    const x = val(a), y = val(b);
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;   // kosong selalu di bawah
+    const c = typeof x === 'string' ? x.localeCompare(y, 'id') : x - y;
+    return st.dir === 'asc' ? c : -c;
+  });
+  const arrow = c => st.key !== c.key ? '<span class="arr idle">▲▼</span>' : `<span class="arr">${st.dir === 'asc' ? '▲' : '▼'}</span>`;
+  return `<div class="tbl-wrap tbl-scroll" style="max-height:${opt.maxHeight || 520}px"><table class="dt${opt.freezeFirst ? ' freeze' : ''}" data-dt="${id}">
+    <thead><tr>${cols.map(c => `<th class="${c.num ? 'num' : ''}" aria-sort="${st.key === c.key ? (st.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="th-sort" data-sort="${c.key}" title="Urutkan ${esc(c.label)}"><span>${c.label}</span>${arrow(c)}</button></th>`).join('')}</tr></thead>
+    <tbody>${sorted.map(r => `<tr ${opt.rowAttr ? opt.rowAttr(r) : ''}>${cols.map(c => `<td class="${c.num ? 'num' : ''}${c.wrap ? ' wrap' : ''}">${c.render ? c.render(r) : esc(r[c.key])}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty">${opt.empty || 'Tidak ada data.'}</td></tr>`}</tbody>
+  </table></div>`;
+}
+function bindDataTable(root, id, redraw) {
+  root.querySelectorAll(`table[data-dt="${id}"] [data-sort]`).forEach(b => b.onclick = () => {
+    const st = TBL[id];
+    if (st.key === b.dataset.sort) st.dir = st.dir === 'asc' ? 'desc' : 'asc';
+    else { st.key = b.dataset.sort; st.dir = b.closest('th').classList.contains('num') ? 'desc' : 'asc'; }
+    redraw();
+  });
+}
+
+const XLSX_LITE = (() => {
+  const enc = new TextEncoder();
+  const T = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; T[n] = c >>> 0; }
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zip(files) {
+    const parts = [], central = []; let off = 0;
+    files.forEach(f => {
+      const name = enc.encode(f.name), data = enc.encode(f.data), crc = crc32(data), sz = data.length;
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(12, 0x21, true);
+      h.setUint32(14, crc, true); h.setUint32(18, sz, true); h.setUint32(22, sz, true); h.setUint16(26, name.length, true);
+      parts.push(new Uint8Array(h.buffer), name, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(14, 0x21, true);
+      c.setUint32(16, crc, true); c.setUint32(20, sz, true); c.setUint32(24, sz, true); c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+      central.push(new Uint8Array(c.buffer), name);
+      off += 30 + name.length + sz;
+    });
+    const cd = central.reduce((a, b) => a + b.length, 0), e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cd, true); e.setUint32(16, off, true);
+    return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+  const x = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  const col = i => { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const serial = iso => { const [y, m, d] = iso.split('-').map(Number); return (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000; };
+  const STYLE = { num: 0, pct: 3, rp: 4, date: 2 };
+  function sheet(sh) {
+    const cs = sh.columns, n = sh.rows.length;
+    const head = `<row r="1">${cs.map((c, i) => `<c r="${col(i)}1" t="inlineStr" s="1"><is><t>${x(c.label)}</t></is></c>`).join('')}</row>`;
+    const body = sh.rows.map((r, ri) => `<row r="${ri + 2}">${r.map((v, ci) => {
+      if (v == null || v === '') return '';
+      const ref = col(ci) + (ri + 2), t = cs[ci].type || 'text';
+      if (t === 'date') return `<c r="${ref}" s="2"><v>${serial(v)}</v></c>`;
+      if (t in STYLE) return `<c r="${ref}" s="${STYLE[t]}"><v>${Number(v)}</v></c>`;
+      return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${x(v)}</t></is></c>`;
+    }).join('')}</row>`).join('');
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0">${sh.freeze === false ? '' : '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>'}</sheetView></sheetViews><cols>${cs.map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.width || 14}" customWidth="1"/>`).join('')}</cols><sheetData>${head}${body}</sheetData>${n && sh.filter !== false ? `<autoFilter ref="A1:${col(cs.length - 1)}${n + 1}"/>` : ''}</worksheet>`;
+  }
+  function download(filename, sheets) {
+    const ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', rel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    const names = sheets.map(s => s.name.replace(/[\\\/\?\*\[\]:]/g, ' ').slice(0, 31));
+    const defs = sheets.map((s, i) => s.rows.length && s.filter !== false ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${x(names[i])}'!$A$1:$${col(s.columns.length - 1)}$${s.rows.length + 1}</definedName>` : '').join('');
+    const files = [
+      { name: '[Content_Types].xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>` },
+      { name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+      { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${ns}" xmlns:r="${rel}"><sheets>${names.map((n, i) => `<sheet name="${x(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets>${defs ? `<definedNames>${defs}</definedNames>` : ''}</workbook>` },
+      { name: 'xl/_rels/workbook.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="${rel}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="${rel}/styles" Target="styles.xml"/></Relationships>` },
+      { name: 'xl/styles.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="${ns}"><numFmts count="2"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="&quot;Rp&quot; #,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF074B34"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="10" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>` },
+      ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheet(s) }))
+    ];
+    const url = URL.createObjectURL(zip(files)), a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  return { download };
+})();
+
+/* =====================================================================
+   BACKOFFICE — tersambung ke Supabase.
+   Baca/tulis master data langsung (dijaga RLS), urusan akun lewat Edge Function admin-akun.
+   ===================================================================== */
+const { sb } = HGAuth;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const fmtDate = s => { const d = new Date(s); return d.getDate() + ' ' + BULAN[d.getMonth()] + ' ' + d.getFullYear(); };
+const fmtDateTime = s => { const d = new Date(s); return fmtDate(s) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const TODAY = (() => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); })();
+const normName = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+const num = n => Math.round(n).toLocaleString('id-ID');
+const opt = (v, l, sel) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(l)}</option>`;
+
+let ME = null;
+const ORG = { divisions: [], positions: [], posDiv: [], apps: [], access: [], landing: [], exceptions: [], profiles: [] };
+const pos = id => ORG.positions.find(p => p.id === id) || {};
+const div = id => ORG.divisions.find(d => d.id === id) || {};
+const app = id => ORG.apps.find(a => a.id === id) || {};
+const prof = id => ORG.profiles.find(p => p.id === id) || {};
+const posDivs = id => ORG.posDiv.filter(x => x.position_id === id).map(x => x.division_id);
+const divLabel = id => id ? esc(div(id).nama || id) : '<span class="chip c-info">Semua divisi</span>';
+
+/* ---------- Data ---------- */
+async function q(p) { const { data, error } = await p; if (error) throw new Error(error.message); return data; }
+async function loadAll() {
+  const [d, p, pd, a, ra, rl, ex, pr] = await Promise.all([
+    q(sb.from('divisions').select('*').order('nama')),
+    q(sb.from('positions').select('*').order('urutan')),
+    q(sb.from('position_divisions').select('*')),
+    q(sb.from('apps').select('*').order('urutan')),
+    q(sb.from('role_app_access').select('*')),
+    q(sb.from('role_landing').select('*')),
+    q(sb.from('user_app_exceptions').select('*').order('created_at', { ascending: false })),
+    q(sb.from('profiles').select('id, nama, username, division_id, position_id, kontrak, aktif, created_at').order('nama'))
+  ]);
+  Object.assign(ORG, { divisions: d, positions: p, posDiv: pd, apps: a, access: ra, landing: rl, exceptions: ex, profiles: pr });
+}
+/** Panggil Edge Function admin-akun dan tampilkan pesan error yang jelas. */
+async function fnAkun(body) {
+  const { data, error } = await sb.functions.invoke('admin-akun', { body });
+  if (error) {
+    let m = error.message;
+    try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (_) { }
+    if (/Failed to send|fetch/i.test(m)) m = 'Edge Function admin-akun belum terpasang atau tidak bisa dihubungi.';
+    throw new Error(m);
+  }
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+/* Cerminan boleh_akses() untuk TAMPILAN saja (keputusan sebenarnya tetap di database). */
+function cekAkses(u, appId) {
+  const a = app(appId);
+  if (!u.aktif) return { ok: false, alasan: 'Akun nonaktif' };
+  if (!a.aktif) return { ok: false, alasan: 'Aplikasi nonaktif' };
+  const ex = ORG.exceptions.find(e => e.profile_id === u.id && e.app_id === appId);
+  if (ex) return { ok: ex.izinkan, alasan: (ex.izinkan ? 'Pengecualian: diizinkan' : 'Pengecualian: diblokir') + ' (' + ex.alasan + ')' };
+  if (pos(u.position_id).cakupan === 'semua') return { ok: true, alasan: 'Jabatan dengan cakupan semua divisi' };
+  if (ORG.access.some(x => x.division_id === u.division_id && x.position_id === u.position_id && x.app_id === appId)) return { ok: true, alasan: 'Matriks: ' + (div(u.division_id).nama || '') + ' · ' + (pos(u.position_id).nama || '') };
+  return { ok: false, alasan: 'Tidak ada di matriks akses' };
+}
+const appsUser = u => ORG.apps.filter(a => cekAkses(u, a.id).ok);
+function landingUser(u) {
+  const list = appsUser(u); if (!list.length) return null; if (list.length === 1) return list[0];
+  const l = ORG.landing.find(x => x.division_id === u.division_id && x.position_id === u.position_id);
+  return l && list.some(a => a.id === l.app_id) ? app(l.app_id) : null;
+}
+
+/* ---------- UI umum ---------- */
+function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.className = 'toast', err ? 6000 : 3400); }
+async function run(btn, fn) {
+  const label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan…'; }
+  try { return await fn(); } catch (e) { toast(e.message, true); } finally { if (btn) { btn.disabled = false; btn.textContent = label; } }
+}
+function openModal(html) { $('#modalBox').innerHTML = html; $('#modal').classList.add('open'); const f = $('#modalBox').querySelector('input,select,textarea,button:not(.x)'); f && f.focus(); }
+function closeModal() { $('#modal').classList.remove('open'); }
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' || e.target.closest('[data-close]')) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); document.body.classList.remove('nav-open'); } });
+const modalHead = (title, sub) => `<div class="modal-head"><div><h2>${esc(title)}</h2>${sub ? `<p class="sub" style="margin:0">${sub}</p>` : ''}</div><button class="x" data-close aria-label="Tutup">×</button></div>`;
+function showPassword(title, nama, username, pw) {
+  openModal(`${modalHead(title, esc(nama))}
+  <div class="note">Berikan data login ini ke orangnya, lalu minta ia mengganti password lewat menu <b>Ganti password</b> di portal setelah login. Password ini hanya ditampilkan sekali.</div>
+  <dl class="kv"><dt>Alamat</dt><dd>${esc(location.origin)}</dd><dt>Username</dt><dd>${esc(username)}</dd><dt>Password</dt><dd><code id="pwShow" style="font-size:16px">${esc(pw)}</code></dd></dl>
+  <div class="actions"><button id="pwCopy">Salin data login</button><button class="btn-primary" data-close>Selesai</button></div>`);
+  $('#pwCopy').onclick = () => navigator.clipboard.writeText(`Login Healthy Go\nAlamat: ${location.origin}\nUsername: ${username}\nPassword: ${pw}`).then(() => toast('Data login disalin.'), () => toast('Gagal menyalin, catat manual.', true));
+}
+
+const NAV = [['akun', 'Akun'], ['matriks', 'Matriks akses'], ['pengecualian', 'Pengecualian'], ['master', 'Master data'], ['laporan', 'Laporan SDM'], ['riwayat', 'Riwayat aktivitas']];
+
+/* ---------- Akun ---------- */
+const AF = { q: '', divisi: '', jabatan: '', status: 'aktif' };
+function pageAkun(v) {
+  v.innerHTML = `<div class="card"><div class="row">
+    <label class="f grow"><span>Cari</span><input id="aQ" value="${esc(AF.q)}" placeholder="Nama atau username"></label>
+    <label class="f"><span>Divisi</span><select id="aDiv"><option value="">Semua divisi</option>${ORG.divisions.map(d => opt(d.id, d.nama, AF.divisi)).join('')}<option value="-" ${AF.divisi === '-' ? 'selected' : ''}>Lintas divisi</option></select></label>
+    <label class="f"><span>Jabatan</span><select id="aJab"><option value="">Semua jabatan</option>${ORG.positions.map(j => opt(j.id, j.nama, AF.jabatan)).join('')}</select></label>
+    <label class="f"><span>Status</span><select id="aSt">${[['aktif', 'Aktif'], ['nonaktif', 'Nonaktif'], ['', 'Semua']].map(([k, l]) => opt(k, l, AF.status)).join('')}</select></label>
+    <button class="btn-primary" id="aAdd">Tambah akun</button></div></div>
+  <div class="card" id="aOut"></div>`;
+  const draw = () => {
+    AF.q = $('#aQ').value; AF.divisi = $('#aDiv').value; AF.jabatan = $('#aJab').value; AF.status = $('#aSt').value;
+    const qq = normName(AF.q);
+    const rows = ORG.profiles.filter(p => (!AF.divisi || (AF.divisi === '-' ? !p.division_id : p.division_id === AF.divisi)) && (!AF.jabatan || p.position_id === AF.jabatan) && (!AF.status || (AF.status === 'aktif') === p.aktif) && (!qq || normName(p.nama).includes(qq) || p.username.includes(qq)))
+      .map(p => ({ ...p, divNama: p.division_id ? div(p.division_id).nama : 'Semua divisi', jabNama: pos(p.position_id).nama || p.position_id, apps: appsUser(p), landing: landingUser(p) }));
+    const cols = [
+      { key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama)}</b>${r.id === ME.id ? ' <span class="chip c-info">Anda</span>' : ''}<br><span class="small muted">${esc(r.username)}</span>` },
+      { key: 'divNama', label: 'Divisi', render: r => divLabel(r.division_id) },
+      { key: 'jabNama', label: 'Jabatan' },
+      { key: 'kontrak', label: 'Kontrak', render: r => esc(r.kontrak) || '<span class="muted">—</span>' },
+      { key: 'nApps', label: 'Akses aplikasi', sort: r => r.apps.length, render: r => pos(r.position_id).cakupan === 'semua' && r.aktif ? `<span class="chip c-info">Semua aplikasi (${r.apps.length})</span>` : r.apps.length ? r.apps.map(a => `<span class="chip ${r.landing && r.landing.id === a.id ? 'c-ok' : 'c-mute'}">${esc(a.nama)}</span>`).join(' ') : '<span class="chip c-bad">Tidak ada</span>' },
+      { key: 'aktif', label: 'Status', sort: r => r.aktif ? 1 : 0, render: r => r.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>' },
+      { key: 'aksi', label: '', sort: () => 0, render: r => `<span class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn-soft btn-sm" data-edit="${r.id}">Ubah</button><button class="btn-sm" data-cek="${r.id}">Cek akses</button><button class="btn-sm" data-reset="${r.id}">Reset password</button>${r.id === ME.id ? '' : `<button class="btn-sm ${r.aktif ? 'btn-danger' : ''}" data-akt="${r.id}">${r.aktif ? 'Nonaktifkan' : 'Aktifkan'}</button>`}</span>` }
+    ];
+    $('#aOut').innerHTML = `<p class="sub">${rows.length} akun. Chip hijau = aplikasi yang langsung dibuka setelah login.</p>` + dataTable('akun', cols, rows, { sortKey: 'nama', freezeFirst: true, maxHeight: 600, empty: 'Tidak ada akun yang cocok.' });
+    bindDataTable($('#aOut'), 'akun', draw);
+    $('#aOut').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => akunForm(b.dataset.edit, draw));
+    $('#aOut').querySelectorAll('[data-cek]').forEach(b => b.onclick = () => cekAksesModal(b.dataset.cek));
+    $('#aOut').querySelectorAll('[data-reset]').forEach(b => b.onclick = () => {
+      const p = prof(b.dataset.reset);
+      if (!confirm('Reset password ' + p.nama + '? Password lama tidak berlaku lagi.')) return;
+      run(b, async () => { const r = await fnAkun({ action: 'reset_password', id: p.id }); showPassword('Password baru', p.nama, p.username, r.password_sementara); });
+    });
+    $('#aOut').querySelectorAll('[data-akt]').forEach(b => b.onclick = () => {
+      const p = prof(b.dataset.akt);
+      if (p.aktif && !confirm('Nonaktifkan ' + p.nama + '? Ia langsung tidak bisa login ke aplikasi mana pun, tetapi datanya tetap tersimpan.')) return;
+      const was = p.aktif; run(b, async () => { await fnAkun({ action: 'set_aktif', id: p.id, aktif: !was }); await loadAll(); toast(p.nama + (was ? ' dinonaktifkan.' : ' diaktifkan.')); draw(); });
+    });
+  };
+  $('#aQ').oninput = draw; ['#aDiv', '#aJab', '#aSt'].forEach(s => $(s).onchange = draw);
+  $('#aAdd').onclick = () => akunForm(null, draw); draw();
+}
+function akunForm(id, after) {
+  const p = id ? prof(id) : { nama: '', username: '', division_id: '', position_id: '', kontrak: '' };
+  openModal(`${modalHead(id ? 'Ubah akun' : 'Tambah akun', id ? '' : 'Kosongkan password untuk dibuatkan password sementara otomatis.')}
+  <div class="form-grid">
+    <label class="f"><span>Nama lengkap</span><input id="fNama" value="${esc(p.nama)}" placeholder="Sama persis dengan di spreadsheet"></label>
+    <label class="f"><span>Username</span><input id="fUser" value="${esc(p.username)}" autocapitalize="none" spellcheck="false"></label>
+    <label class="f"><span>Jabatan</span><select id="fJab"><option value="">Pilih jabatan</option>${ORG.positions.map(j => opt(j.id, j.nama + (j.cakupan === 'semua' ? ' (semua divisi)' : ''), p.position_id)).join('')}</select></label>
+    <label class="f" id="fDivWrap"><span>Divisi</span><select id="fDiv"></select></label>
+    <label class="f"><span>Kontrak</span><select id="fKon"><option value="">—</option>${['Full Time', 'Part Time'].map(k => opt(k, k, p.kontrak)).join('')}</select></label>
+    ${id ? '' : `<label class="f"><span>Email asli (opsional)</span><input id="fEmail" type="email" placeholder="Untuk admin; kurir kosongkan"></label>
+    <label class="f"><span>Password (opsional)</span><input id="fPw" type="text" placeholder="Min. 8 karakter"></label>`}
+  </div>
+  <div class="note" id="fPrev" style="margin:14px 0 0"></div>
+  <div class="actions"><button data-close>Batal</button><button class="btn-primary" id="fSave">${id ? 'Simpan perubahan' : 'Buat akun'}</button></div>`);
+  const sync = () => {
+    const j = pos($('#fJab').value), cur = $('#fDiv').value || p.division_id;
+    $('#fDivWrap').hidden = j.cakupan === 'semua';
+    $('#fDiv').innerHTML = '<option value="">Pilih divisi</option>' + ORG.divisions.filter(d => !j.id || posDivs(j.id).includes(d.id)).map(d => opt(d.id, d.nama, cur)).join('');
+    const temp = { id: '__p', aktif: true, position_id: $('#fJab').value, division_id: j.cakupan === 'semua' ? null : $('#fDiv').value };
+    const list = temp.position_id ? appsUser(temp) : [], l = temp.position_id ? landingUser(temp) : null;
+    $('#fPrev').innerHTML = !temp.position_id ? 'Pilih jabatan untuk melihat aplikasi yang akan bisa dibuka.' : list.length ? `<b>Akan bisa membuka:</b> ${list.map(a => esc(a.nama)).join(', ')}. ${l ? 'Setelah login langsung ke <b>' + esc(l.nama) + '</b>.' : 'Setelah login melihat portal.'}` : 'Kombinasi divisi dan jabatan ini belum punya akses aplikasi. Atur di Matriks akses.';
+  };
+  $('#fJab').onchange = sync; $('#fDiv').onchange = sync; sync();
+  $('#fNama').oninput = e => { if (!id) $('#fUser').value = e.target.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, ''); };
+  $('#fSave').onclick = () => run($('#fSave'), async () => {
+    const j = pos($('#fJab').value);
+    if (!j.id) throw new Error('Pilih jabatan.');
+    if (j.cakupan === 'divisi' && !$('#fDiv').value) throw new Error('Pilih divisi.');
+    const body = { nama: $('#fNama').value, username: $('#fUser').value.trim().toLowerCase(), position_id: j.id, division_id: j.cakupan === 'semua' ? null : $('#fDiv').value, kontrak: $('#fKon').value || null };
+    if (id) {
+      await fnAkun({ action: 'update', id, ...body }); await loadAll(); closeModal(); toast('Akun diperbarui.'); after();
+    } else {
+      const r = await fnAkun({ action: 'create', ...body, email: $('#fEmail').value.trim() || undefined, password: $('#fPw').value || undefined });
+      await loadAll(); after();
+      if (r.password_sementara) showPassword('Akun dibuat', body.nama, body.username, r.password_sementara);
+      else { closeModal(); toast('Akun ' + body.nama + ' dibuat.'); }
+    }
+  });
+}
+function cekAksesModal(id) {
+  const p = prof(id), l = landingUser(p);
+  openModal(`${modalHead('Cek akses: ' + p.nama, `${p.division_id ? esc(div(p.division_id).nama) : 'Lintas divisi'} · ${esc(pos(p.position_id).nama)} · ${p.aktif ? 'aktif' : 'nonaktif'}`)}
+  <div class="note">${l ? 'Setelah login, langsung diarahkan ke <b>' + esc(l.nama) + '</b>.' : appsUser(p).length ? 'Setelah login, melihat portal.' : 'Tidak bisa membuka aplikasi apa pun.'}</div>
+  <div class="tbl-wrap"><table><thead><tr><th>Aplikasi</th><th>Divisi</th><th>Akses</th><th>Alasan</th></tr></thead><tbody>
+  ${ORG.apps.map(a => { const c = cekAkses(p, a.id); return `<tr><td><b>${esc(a.nama)}</b><br><span class="small muted">${esc(a.url)}</span></td><td>${divLabel(a.division_id)}</td><td>${c.ok ? '<span class="chip c-ok">Boleh</span>' : '<span class="chip c-mute">Tidak</span>'}</td><td class="small wrap">${esc(c.alasan)}</td></tr>`; }).join('')}
+  </tbody></table></div>`);
+}
+
+/* ---------- Matriks ---------- */
+let MDiv = null;
+function pageMatriks(v) {
+  if (!div(MDiv).id) MDiv = (ORG.divisions[0] || {}).id;
+  if (!MDiv) { v.innerHTML = '<div class="card empty">Belum ada divisi. Tambahkan di Master data.</div>'; return; }
+  const apps = ORG.apps.filter(a => a.division_id === MDiv), jabs = ORG.positions.filter(j => j.cakupan === 'divisi' && posDivs(j.id).includes(MDiv));
+  const has = (j, a) => ORG.access.some(x => x.division_id === MDiv && x.position_id === j && x.app_id === a);
+  const land = j => (ORG.landing.find(x => x.division_id === MDiv && x.position_id === j) || {}).app_id;
+  const count = j => ORG.profiles.filter(p => p.aktif && p.division_id === MDiv && p.position_id === j).length;
+  v.innerHTML = `<div class="tabs" role="tablist">${ORG.divisions.map(d => `<button role="tab" aria-selected="${MDiv === d.id}" data-d="${d.id}">${esc(d.nama)}</button>`).join('')}</div>
+  <div class="card"><h2>Matriks akses ${esc(div(MDiv).nama)}</h2><p class="sub">Centang aplikasi yang boleh dibuka tiap jabatan. Aplikasi utama = langsung dibuka setelah login; pilih Portal kalau orangnya perlu memilih.</p>
+  ${apps.length && jabs.length ? `<div class="tbl-wrap"><table class="mx"><thead><tr><th>Jabatan</th>${apps.map(a => `<th>${esc(a.nama)}<br><span class="small muted" style="font-weight:500">${esc(a.url)}</span></th>`).join('')}<th>Aplikasi utama</th></tr></thead><tbody>
+  ${jabs.map(j => `<tr data-j="${j.id}"><td><b>${esc(j.nama)}</b><br><span class="small muted">${count(j.id)} orang aktif</span></td>${apps.map(a => `<td><input type="checkbox" class="big" data-a="${a.id}" ${has(j.id, a.id) ? 'checked' : ''} aria-label="${esc(j.nama)} boleh membuka ${esc(a.nama)}"></td>`).join('')}
+  <td><select data-utama><option value="">Portal</option>${apps.map(a => opt(a.id, a.nama, land(j.id))).join('')}</select></td></tr>`).join('')}
+  </tbody></table></div><div class="actions"><button class="btn-primary" id="mxSave">Simpan matriks</button></div>`
+      : `<div class="empty">${!apps.length ? 'Divisi ini belum punya aplikasi. Tambahkan di Master data → Aplikasi.' : 'Belum ada jabatan untuk divisi ini. Atur di Master data → Jabatan.'}</div>`}</div>
+  <div class="card"><h2>Jabatan lintas divisi</h2><p class="sub">Otomatis bisa membuka semua aplikasi, termasuk Backoffice.</p>${ORG.positions.filter(j => j.cakupan === 'semua').map(j => `<span class="chip c-info" style="margin-right:6px">${esc(j.nama)} · ${ORG.profiles.filter(p => p.aktif && p.position_id === j.id).length} orang</span>`).join('')}</div>`;
+  v.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { MDiv = b.dataset.d; pageMatriks(v); });
+  v.querySelectorAll('tr[data-j]').forEach(tr => { const u = tr.querySelector('[data-utama]'); tr.querySelectorAll('[data-a]').forEach(c => c.onchange = () => { if (!c.checked && u.value === c.dataset.a) u.value = ''; }); u.onchange = () => { if (u.value) tr.querySelector(`[data-a="${u.value}"]`).checked = true; }; });
+  const s = $('#mxSave'); if (s) s.onclick = () => run(s, async () => {
+    const rows = [...v.querySelectorAll('tr[data-j]')];
+    const akses = rows.flatMap(tr => [...tr.querySelectorAll('[data-a]:checked')].map(c => ({ position_id: tr.dataset.j, app_id: c.dataset.a })));
+    const landing = rows.map(tr => ({ position_id: tr.dataset.j, app_id: tr.querySelector('[data-utama]').value })).filter(x => x.app_id);
+    await q(sb.rpc('simpan_matriks', { p_divisi: MDiv, p_akses: akses, p_landing: landing }));
+    await loadAll(); toast('Matriks ' + div(MDiv).nama + ' tersimpan.'); pageMatriks(v);
+  });
+}
+
+/* ---------- Pengecualian ---------- */
+function pagePengecualian(v) {
+  const rows = ORG.exceptions.map(e => ({ ...e, nama: prof(e.profile_id).nama || '(akun dihapus)', appNama: app(e.app_id).nama }));
+  const cols = [
+    { key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama)}</b>` },
+    { key: 'appNama', label: 'Aplikasi' },
+    { key: 'izinkan', label: 'Jenis', sort: r => r.izinkan ? 1 : 0, render: r => r.izinkan ? '<span class="chip c-ok">Diizinkan</span>' : '<span class="chip c-bad">Diblokir</span>' },
+    { key: 'alasan', label: 'Alasan', wrap: true },
+    { key: 'created_at', label: 'Dibuat', render: r => fmtDate(r.created_at) },
+    { key: 'aksi', label: '', sort: () => 0, render: r => `<button class="btn-sm btn-danger" data-del="${r.id}">Hapus</button>` }
+  ];
+  v.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Pengecualian per orang</h2><p class="sub" style="margin:0">Memberi akses tambahan atau memblokir akses dari jabatan. Pengecualian mengalahkan matriks.</p></div><button class="btn-primary" id="exAdd">Tambah pengecualian</button></div>
+  ${dataTable('exc', cols, rows, { sortKey: 'created_at', sortDir: 'desc', empty: 'Belum ada pengecualian.' })}</div>`;
+  bindDataTable(v, 'exc', () => pagePengecualian(v));
+  v.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    const e = ORG.exceptions.find(x => String(x.id) === b.dataset.del);
+    if (!confirm('Hapus pengecualian ini? Aksesnya kembali mengikuti matriks.')) return;
+    run(b, async () => { await q(sb.from('user_app_exceptions').delete().eq('id', e.id)); await loadAll(); toast('Pengecualian dihapus.'); pagePengecualian(v); });
+  });
+  $('#exAdd').onclick = () => {
+    openModal(`${modalHead('Tambah pengecualian')}
+    <div class="form-grid">
+      <label class="f"><span>Orang</span><input id="exQ" list="exPeople" placeholder="Ketik nama"><datalist id="exPeople">${ORG.profiles.filter(p => p.aktif).map(p => `<option value="${esc(p.nama)}">`).join('')}</datalist></label>
+      <label class="f"><span>Aplikasi</span><select id="exApp"><option value="">Pilih aplikasi</option>${ORG.apps.map(a => opt(a.id, a.nama + (a.division_id ? ' · ' + (div(a.division_id).nama || '') : ' · Lintas divisi'))).join('')}</select></label>
+      <label class="f"><span>Jenis</span><select id="exType"><option value="1">Izinkan</option><option value="0">Blokir</option></select></label>
+    </div>
+    <label class="f" style="margin-top:12px"><span>Alasan</span><textarea id="exWhy" rows="2"></textarea></label>
+    <div class="note" id="exPrev" style="margin:12px 0 0">Pilih orang dan aplikasi untuk melihat aksesnya saat ini.</div>
+    <div class="actions"><button data-close>Batal</button><button class="btn-primary" id="exSave">Simpan</button></div>`);
+    const who = () => ORG.profiles.find(p => normName(p.nama) === normName($('#exQ').value));
+    const prev = () => { const p = who(), a = $('#exApp').value; $('#exPrev').textContent = p && a ? `Saat ini ${p.nama} ${cekAkses(p, a).ok ? 'BISA' : 'TIDAK bisa'} membuka ${app(a).nama} (${cekAkses(p, a).alasan}).` : 'Pilih orang dan aplikasi untuk melihat aksesnya saat ini.'; };
+    $('#exQ').oninput = prev; $('#exApp').onchange = prev;
+    $('#exSave').onclick = () => run($('#exSave'), async () => {
+      const p = who(); if (!p) throw new Error('Nama tidak ditemukan. Pilih dari daftar.');
+      if (!$('#exApp').value) throw new Error('Pilih aplikasi.');
+      if (!$('#exWhy').value.trim()) throw new Error('Tulis alasannya.');
+      if (p.id === ME.id && $('#exApp').value === 'backoffice' && $('#exType').value === '0') throw new Error('Anda tidak bisa memblokir Backoffice untuk diri sendiri.');
+      const { error } = await sb.from('user_app_exceptions').insert({ profile_id: p.id, app_id: $('#exApp').value, izinkan: $('#exType').value === '1', alasan: $('#exWhy').value.trim(), created_by: ME.id });
+      if (error) throw new Error(/duplicate|unique/i.test(error.message) ? 'Pengecualian untuk orang dan aplikasi ini sudah ada.' : error.message);
+      await loadAll(); closeModal(); toast('Pengecualian disimpan.'); pagePengecualian(v);
+    });
+  };
+}
+
+/* ---------- Master data ---------- */
+let MTab = 'divisi';
+function pageMaster(v) {
+  v.innerHTML = `<div class="tabs" role="tablist">${[['divisi', 'Divisi'], ['jabatan', 'Jabatan'], ['aplikasi', 'Aplikasi']].map(([k, l]) => `<button role="tab" aria-selected="${MTab === k}" data-t="${k}">${l}</button>`).join('')}</div><div class="card" id="mOut"></div>`;
+  v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { MTab = b.dataset.t; pageMaster(v); });
+  const out = $('#mOut'), redraw = () => pageMaster(v);
+  if (MTab === 'divisi') {
+    out.innerHTML = `<h2>Divisi</h2><p class="sub">Setelah divisi dibuat: tambahkan aplikasinya, centang jabatan yang memakainya, lalu atur matriks akses.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Kode</th><th>Nama</th><th class="num">Akun aktif</th><th class="num">Aplikasi</th><th>Jabatan</th></tr></thead><tbody>${ORG.divisions.map(d => `<tr><td><b>${esc(d.id)}</b></td><td>${esc(d.nama)}</td><td class="num">${ORG.profiles.filter(p => p.aktif && p.division_id === d.id).length}</td><td class="num">${ORG.apps.filter(a => a.division_id === d.id).length}</td><td class="small">${ORG.positions.filter(j => posDivs(j.id).includes(d.id)).map(j => esc(j.nama)).join(', ') || '—'}</td></tr>`).join('')}</tbody></table></div>
+    <div class="row" style="margin-top:14px"><label class="f"><span>Kode</span><input id="dvKode" placeholder="KTC" maxlength="5" style="width:110px;text-transform:uppercase"></label><label class="f grow"><span>Nama divisi</span><input id="dvNama" placeholder="Kitchen"></label><button class="btn-primary" id="dvAdd">Tambah divisi</button></div>`;
+    $('#dvAdd').onclick = () => run($('#dvAdd'), async () => {
+      const kode = $('#dvKode').value.trim().toUpperCase(), nama = $('#dvNama').value.trim();
+      if (!/^[A-Z]{2,5}$/.test(kode)) throw new Error('Kode divisi 2–5 huruf, contoh: KTC.');
+      if (!nama) throw new Error('Nama divisi wajib diisi.');
+      const { error } = await sb.from('divisions').insert({ id: kode, nama });
+      if (error) throw new Error(/duplicate|unique/i.test(error.message) ? 'Kode atau nama divisi sudah dipakai.' : error.message);
+      await loadAll(); toast('Divisi ' + nama + ' ditambahkan.'); redraw();
+    });
+  }
+  if (MTab === 'jabatan') {
+    out.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Jabatan</h2><p class="sub" style="margin:0">Cakupan "divisi sendiri" mengikuti matriks. "Semua divisi" otomatis membuka semua aplikasi.</p></div><button class="btn-primary" id="jbAdd">Tambah jabatan</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Jabatan</th><th>Kode</th><th>Cakupan</th><th>Dipakai di divisi</th><th class="num">Akun aktif</th><th></th></tr></thead><tbody>${ORG.positions.map(j => `<tr><td><b>${esc(j.nama)}</b></td><td class="small muted">${esc(j.id)}</td><td>${j.cakupan === 'semua' ? '<span class="chip c-info">Semua divisi</span>' : '<span class="chip c-mute">Divisi sendiri</span>'}</td><td class="small">${j.cakupan === 'semua' ? '—' : posDivs(j.id).map(d => esc(div(d).nama)).join(', ')}</td><td class="num">${ORG.profiles.filter(p => p.aktif && p.position_id === j.id).length}</td><td><button class="btn-soft btn-sm" data-jb="${j.id}">Ubah</button></td></tr>`).join('')}</tbody></table></div>`;
+    const form = id => {
+      const j = id ? pos(id) : { nama: '', cakupan: 'divisi' }, dv = id ? posDivs(id) : [];
+      openModal(`${modalHead(id ? 'Ubah jabatan' : 'Tambah jabatan')}<div class="form-grid"><label class="f"><span>Nama jabatan</span><input id="jbNama" value="${esc(j.nama)}"></label><label class="f"><span>Cakupan</span><select id="jbCak">${opt('divisi', 'Divisi sendiri', j.cakupan)}${opt('semua', 'Semua divisi', j.cakupan)}</select></label></div>
+      <div id="jbDivWrap" style="margin-top:12px"><span class="small muted" style="font-weight:600">Dipakai di divisi</span><div class="area-pick" style="margin-top:6px">${ORG.divisions.map(d => `<label><input type="checkbox" value="${d.id}" ${dv.includes(d.id) ? 'checked' : ''}>${esc(d.nama)}</label>`).join('')}</div></div>
+      <p class="small muted" style="margin:10px 0 0">Cakupan semua divisi memberi akses ke seluruh aplikasi termasuk Backoffice. Gunakan hanya untuk pimpinan atau admin pusat.</p>
+      <div class="actions"><button data-close>Batal</button><button class="btn-primary" id="jbSave">Simpan</button></div>`);
+      const t = () => $('#jbDivWrap').hidden = $('#jbCak').value === 'semua'; $('#jbCak').onchange = t; t();
+      $('#jbSave').onclick = () => run($('#jbSave'), async () => {
+        await q(sb.rpc('simpan_jabatan', { p_id: id, p_nama: $('#jbNama').value, p_cakupan: $('#jbCak').value, p_divisi: [...$('#modalBox').querySelectorAll('.area-pick input:checked')].map(i => i.value) }));
+        await loadAll(); closeModal(); toast('Jabatan disimpan.'); redraw();
+      });
+    };
+    $('#jbAdd').onclick = () => form(null); out.querySelectorAll('[data-jb]').forEach(b => b.onclick = () => form(b.dataset.jb));
+  }
+  if (MTab === 'aplikasi') {
+    out.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Aplikasi</h2><p class="sub" style="margin:0">Dibaca portal untuk menampilkan kartu aplikasi. URL harus sama dengan folder aplikasinya di dalam <code>public</code>.</p></div><button class="btn-primary" id="apAdd">Tambah aplikasi</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Aplikasi</th><th>Kode</th><th>Divisi</th><th>URL</th><th class="num">Orang yang bisa membuka</th><th>Status</th><th></th></tr></thead><tbody>${ORG.apps.map(a => `<tr><td><b>${esc(a.nama)}</b></td><td class="small muted">${esc(a.id)}</td><td>${divLabel(a.division_id)}</td><td><code>${esc(a.url)}</code></td><td class="num">${ORG.profiles.filter(p => cekAkses(p, a.id).ok).length}</td><td>${a.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>'}</td><td><button class="btn-soft btn-sm" data-ap="${a.id}">Ubah</button></td></tr>`).join('')}</tbody></table></div>`;
+    const form = id => {
+      const a = id ? app(id) : { id: '', nama: '', division_id: '', url: '', aktif: true, urutan: 100 };
+      openModal(`${modalHead(id ? 'Ubah aplikasi' : 'Tambah aplikasi')}<div class="form-grid">
+        ${id ? '' : '<label class="f"><span>Kode</span><input id="apId" placeholder="ktc-stok"></label>'}
+        <label class="f"><span>Nama</span><input id="apNama" value="${esc(a.nama)}"></label>
+        <label class="f"><span>Divisi</span><select id="apDiv"><option value="">Lintas divisi</option>${ORG.divisions.map(d => opt(d.id, d.nama, a.division_id)).join('')}</select></label>
+        <label class="f"><span>URL</span><input id="apUrl" value="${esc(a.url)}" placeholder="/kitchen/stok"></label>
+        <label class="f"><span>Urutan</span><input id="apUrut" type="number" value="${a.urutan}"></label>
+        <label class="f"><span>Status</span><select id="apAkt">${opt('1', 'Aktif', a.aktif ? '1' : '0')}${opt('0', 'Nonaktif (disembunyikan)', a.aktif ? '1' : '0')}</select></label></div>
+      <div class="actions"><button data-close>Batal</button><button class="btn-primary" id="apSave">Simpan</button></div>`);
+      $('#apSave').onclick = () => run($('#apSave'), async () => {
+        const row = { nama: $('#apNama').value.trim(), division_id: $('#apDiv').value || null, url: $('#apUrl').value.trim(), urutan: Number($('#apUrut').value) || 100, aktif: $('#apAkt').value === '1' };
+        if (!row.nama) throw new Error('Nama aplikasi wajib diisi.');
+        if (!/^\/[a-z0-9\/-]*$/.test(row.url)) throw new Error('URL diawali "/" dan hanya huruf kecil, angka, strip. Contoh: /kitchen/stok');
+        if (id === 'backoffice' && !row.aktif) throw new Error('Backoffice tidak bisa dinonaktifkan.');
+        let error;
+        if (id) ({ error } = await sb.from('apps').update(row).eq('id', id));
+        else {
+          const kode = $('#apId').value.trim().toLowerCase();
+          if (!/^[a-z0-9-]+$/.test(kode)) throw new Error('Kode aplikasi: huruf kecil, angka, strip. Contoh: ktc-stok');
+          ({ error } = await sb.from('apps').insert({ id: kode, ...row }));
+        }
+        if (error) throw new Error(/duplicate|unique/i.test(error.message) ? 'Kode atau URL sudah dipakai aplikasi lain.' : error.message);
+        await loadAll(); closeModal(); toast('Aplikasi disimpan.'); redraw();
+      });
+    };
+    $('#apAdd').onclick = () => form(null); out.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => form(b.dataset.ap));
+  }
+}
+
+/* ---------- Laporan SDM ---------- */
+const LS = { divisi: '', status: 'aktif' };
+function pageLaporan(v) {
+  const list = ORG.profiles.filter(p => (!LS.divisi || (LS.divisi === '-' ? !p.division_id : p.division_id === LS.divisi)) && (!LS.status || (LS.status === 'aktif') === p.aktif));
+  const aktif = ORG.profiles.filter(p => p.aktif), divs = [...ORG.divisions.map(d => ({ id: d.id, nama: d.nama })), { id: null, nama: 'Lintas divisi' }];
+  const hc = ORG.positions.map(j => { const r = { jab: j.nama }; let t = 0; divs.forEach(d => { const n = list.filter(p => p.position_id === j.id && (p.division_id || null) === d.id).length; r[d.id || '-'] = n; t += n; }); r.total = t; return r; }).filter(r => r.total);
+  const rows = list.map(p => ({ p, nama: p.nama, username: p.username, divNama: p.division_id ? div(p.division_id).nama : 'Lintas divisi', jabNama: pos(p.position_id).nama, kontrak: p.kontrak || '', status: p.aktif ? 'Aktif' : 'Nonaktif', dibuat: p.created_at }));
+  v.innerHTML = `<div class="card"><div class="row">
+    <label class="f"><span>Divisi</span><select id="lsDiv"><option value="">Semua divisi</option>${ORG.divisions.map(d => opt(d.id, d.nama, LS.divisi)).join('')}<option value="-" ${LS.divisi === '-' ? 'selected' : ''}>Lintas divisi</option></select></label>
+    <label class="f"><span>Status</span><select id="lsSt">${[['aktif', 'Aktif'], ['nonaktif', 'Nonaktif'], ['', 'Semua']].map(([k, l]) => opt(k, l, LS.status)).join('')}</select></label>
+    <span class="grow"></span><button class="btn-primary" id="lsXls">Unduh Excel</button></div>
+    <p class="small muted" style="margin:10px 0 0">Laporan absensi semua divisi ditambahkan setelah modul absensi terpasang.</p></div>
+  <div class="kpis"><div class="kpi lead"><span>Total SDM aktif</span><b>${num(aktif.length)}</b><small>${ORG.profiles.length - aktif.length} nonaktif</small></div>
+    ${ORG.divisions.map(d => `<div class="kpi"><span>${esc(d.nama)}</span><b>${aktif.filter(p => p.division_id === d.id).length}</b><small>orang aktif</small></div>`).join('')}</div>
+  <div class="card"><h2>Headcount per jabatan</h2><div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Jabatan</th>${divs.map(d => `<th class="num">${esc(d.nama)}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>
+    ${hc.map(r => `<tr><td><b>${esc(r.jab)}</b></td>${divs.map(d => `<td class="num">${r[d.id || '-'] || '<span class="muted">0</span>'}</td>`).join('')}<td class="num"><b>${r.total}</b></td></tr>`).join('') || `<tr><td colspan="${divs.length + 2}" class="empty">Tidak ada data.</td></tr>`}</tbody></table></div></div>
+  <div class="card" id="lsList"></div>`;
+  const cols = [{ key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama)}</b>` }, { key: 'username', label: 'Username' }, { key: 'divNama', label: 'Divisi' }, { key: 'jabNama', label: 'Jabatan' }, { key: 'kontrak', label: 'Kontrak' }, { key: 'status', label: 'Status', render: r => `<span class="chip ${r.p.aktif ? 'c-ok' : 'c-mute'}">${r.status}</span>` }, { key: 'dibuat', label: 'Dibuat', render: r => fmtDate(r.dibuat) }];
+  const drawList = () => { $('#lsList').innerHTML = `<h2>Daftar SDM</h2><p class="sub">${rows.length} orang.</p>` + dataTable('lapSdm', cols, rows, { sortKey: 'nama', freezeFirst: true, empty: 'Tidak ada data.' }); bindDataTable($('#lsList'), 'lapSdm', drawList); };
+  drawList();
+  $('#lsDiv').onchange = e => { LS.divisi = e.target.value; pageLaporan(v); };
+  $('#lsSt').onchange = e => { LS.status = e.target.value; pageLaporan(v); };
+  $('#lsXls').onclick = () => {
+    if (!rows.length) return toast('Tidak ada data untuk diunduh.', true);
+    const now = new Date();
+    XLSX_LITE.download(`Laporan Data SDM ${TODAY}.xlsx`, [
+      { name: 'Headcount', columns: [{ label: 'Jabatan', width: 20 }, ...divs.map(d => ({ label: d.nama, type: 'num', width: 13 })), { label: 'Total', type: 'num', width: 10 }], rows: hc.map(r => [r.jab, ...divs.map(d => r[d.id || '-']), r.total]) },
+      { name: 'Daftar SDM', columns: [{ label: 'Nama', width: 24 }, { label: 'Username', width: 22 }, { label: 'Divisi', width: 14 }, { label: 'Jabatan', width: 16 }, { label: 'Kontrak', width: 11 }, { label: 'Status', width: 10 }, { label: 'Dibuat', type: 'date', width: 12 }], rows: rows.slice().sort((a, b) => a.divNama.localeCompare(b.divNama) || a.nama.localeCompare(b.nama)).map(r => [r.nama, r.username, r.divNama, r.jabNama, r.kontrak, r.status, r.dibuat.slice(0, 10)]) },
+      { name: 'Info', filter: false, freeze: false, columns: [{ label: 'Keterangan', width: 22 }, { label: 'Isi', width: 50 }], rows: [['Laporan', 'Data SDM'], ['Divisi', LS.divisi === '-' ? 'Lintas divisi' : LS.divisi ? div(LS.divisi).nama : 'Semua'], ['Status', LS.status || 'Semua'], ['Jumlah orang', rows.length], ['Dibuat oleh', ME.nama], ['Dibuat pada', fmtDate(now) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes())]] }
+    ]);
+    toast('Excel diunduh: ' + rows.length + ' orang.');
+  };
+}
+
+/* ---------- Riwayat aktivitas ---------- */
+const AKSI = { buat_akun: 'Buat akun', ubah_akun: 'Ubah akun', aktifkan_akun: 'Aktifkan akun', nonaktifkan_akun: 'Nonaktifkan akun', reset_password: 'Reset password', simpan_matriks: 'Simpan matriks', simpan_jabatan: 'Simpan jabatan' };
+async function pageRiwayat(v) {
+  v.innerHTML = '<div class="card empty">Memuat riwayat…</div>';
+  const rows = (await q(sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(300))).map(r => ({
+    ...r, waktu: r.created_at, oleh: prof(r.actor_id).nama || '—', aksiNama: AKSI[r.aksi] || r.aksi,
+    target: r.target_tabel === 'profiles' ? (prof(r.target_id).nama || r.target_id) : r.target_tabel === 'role_app_access' ? (div(r.target_id).nama || r.target_id) : r.target_tabel === 'positions' ? (pos(r.target_id).nama || r.target_id) : r.target_id
+  }));
+  const cols = [{ key: 'waktu', label: 'Waktu', render: r => fmtDateTime(r.waktu) }, { key: 'oleh', label: 'Oleh', render: r => `<b>${esc(r.oleh)}</b>` }, { key: 'aksiNama', label: 'Aksi' }, { key: 'target', label: 'Target' }];
+  v.innerHTML = `<div class="card"><h2>Riwayat aktivitas</h2><p class="sub">300 aktivitas terakhir di Backoffice dan pengelolaan akun.</p>${dataTable('audit', cols, rows, { sortKey: 'waktu', sortDir: 'desc', maxHeight: 640, empty: 'Belum ada aktivitas.' })}</div>`;
+  bindDataTable(v, 'audit', () => pageRiwayat(v));
+}
+
+/* ---------- Router ---------- */
+const PAGES = { akun: pageAkun, matriks: pageMatriks, pengecualian: pagePengecualian, master: pageMaster, laporan: pageLaporan, riwayat: pageRiwayat };
+function render() {
+  let id = location.hash.slice(1); if (!PAGES[id]) id = 'akun';
+  $('#nav').innerHTML = NAV.map(([k, l]) => `<a href="#${k}" class="${k === id ? 'active' : ''}" ${k === id ? 'aria-current="page"' : ''}>${l}</a>`).join('');
+  $('#pageTitle').textContent = NAV.find(n => n[0] === id)[1];
+  document.title = NAV.find(n => n[0] === id)[1] + ' · Backoffice';
+  Promise.resolve(PAGES[id]($('#view'))).catch(e => { $('#view').innerHTML = `<div class="card empty">Gagal memuat: ${esc(e.message)}</div>`; });
+}
+window.addEventListener('hashchange', () => { document.body.classList.remove('nav-open'); render(); window.scrollTo(0, 0); });
+$('#menuBtn').onclick = () => document.body.classList.add('nav-open');
+$('#scrim').onclick = () => document.body.classList.remove('nav-open');
+$('#logoutLink').onclick = e => { e.preventDefault(); HGAuth.logout(); };
+
+(async () => {
+  const me = await HGAuth.guard('backoffice');
+  ME = me.profile;
+  $('#meBox').innerHTML = `<b>${esc(ME.nama)}</b>${esc(ME.positions ? ME.positions.nama : ME.position_id)}`;
+  try { await loadAll(); } catch (e) { $('#view').innerHTML = `<div class="card empty">Gagal memuat data: ${esc(e.message)}</div>`; return; }
+  render();
+})();
+
+</script>
+</body>
+</html>
