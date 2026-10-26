@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Management Delivery · Healthy Go</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+
+:root{--hg:#074b34;--hg-deep:#04331f;--hg-700:#0b5e41;--hg-500:#1d8a5b;--hg-100:#e3f1e8;--hg-50:#f1f7f3;--sun:#f3cf1b;
+--bg:#f4f6f1;--card:#fff;--ink:#13241c;--muted:#5d6e65;--line:#dde6df;--field:#fff;
+--ok:#167a43;--ok-bg:#e2f4e8;--warn:#9a5b00;--warn-bg:#fff2d3;--bad:#b4281c;--bad-bg:#fde7e4;--info:#1f5f99;--info-bg:#e6f0fb;
+--radius:14px;--side:264px;color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a15;--card:#16241d;--ink:#e6efe9;--muted:#9db0a5;--line:#2a3c33;--field:#1b2c24;
+--hg-100:#1d3a2c;--hg-50:#18291f;--ok:#5fd08f;--ok-bg:#183a27;--warn:#f0b54a;--warn-bg:#3a2d12;--bad:#f2877b;--bad-bg:#3e1d19;--info:#8bbcf0;--info-bg:#18293d;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1a15;--card:#16241d;--ink:#e6efe9;--muted:#9db0a5;--line:#2a3c33;--field:#1b2c24;
+--hg-100:#1d3a2c;--hg-50:#18291f;--ok:#5fd08f;--ok-bg:#183a27;--warn:#f0b54a;--warn-bg:#3a2d12;--bad:#f2877b;--bad-bg:#3e1d19;--info:#8bbcf0;--info-bg:#18293d;color-scheme:dark}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 14px;font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.btn-primary{background:var(--hg);border-color:var(--hg);color:#fff}
+.btn-primary:hover{background:var(--hg-700)}
+.btn-soft{background:var(--hg-50);border-color:var(--hg-100)}
+.btn-danger{background:var(--bad-bg);border-color:transparent;color:var(--bad)}
+.btn-sm{padding:5px 10px;font-size:13px;border-radius:8px}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{background:var(--field);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted)}
+label.f>input,label.f>select,label.f>textarea{color:var(--ink);font-weight:500;font-size:15px}
+
+/* Prototype bar */
+.proto{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:center;padding:7px 14px;background:var(--sun);color:#3b3000;font-size:13px;font-weight:600}
+.proto select{padding:3px 8px;border-radius:8px;border:1px solid #c9a900;background:#fff8d6;color:#3b3000}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--sun)}
+
+/* Layout */
+.shell{display:grid;grid-template-columns:var(--side) 1fr;min-height:100vh}
+.side{background:var(--hg-deep);color:#e8f3ec;display:flex;flex-direction:column;padding:18px 14px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{display:flex;gap:10px;align-items:center;padding:4px 8px 18px}
+.brand-mark{width:38px;height:38px;border-radius:11px;background:var(--sun);color:var(--hg-deep);display:grid;place-items:center;font-weight:800;font-size:15px}
+.brand b{display:block;font-size:15px}.brand small{color:#a9c9b6;font-size:12px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:#d6e9dd;text-decoration:none;font-weight:600;font-size:14px}
+.nav a:hover{background:rgba(255,255,255,.07)}
+.nav a.active{background:var(--hg-700);color:#fff;box-shadow:inset 3px 0 0 var(--sun)}
+.nav .grp{margin:14px 12px 4px;font-size:12px;color:#8fb59e;font-weight:600}
+.side-foot{margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;gap:2px}
+.side-foot a{color:#cfe4d7;text-decoration:none;font-size:13px;padding:7px 12px;border-radius:8px}
+.side-foot a:hover{background:rgba(255,255,255,.07)}
+.me{padding:10px 12px;font-size:13px;color:#a9c9b6}.me b{color:#fff;display:block;font-size:14px}
+main{min-width:0;padding:22px clamp(14px,3vw,34px) 60px}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.top h1{margin:0;font-size:24px;letter-spacing:-.01em}
+.menu-btn{display:none}
+.scrim{display:none}
+
+/* Components */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+.card+.card{margin-top:16px}
+.card h2{margin:0 0 4px;font-size:17px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.grow{flex:1 1 180px}
+.tabs{display:inline-flex;gap:4px;padding:4px;background:var(--hg-50);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;flex-wrap:wrap}
+.tabs button{border:0;background:transparent;padding:7px 14px;border-radius:9px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{background:var(--hg-50);font-size:12.5px;color:var(--muted);font-weight:700;position:sticky;top:0;z-index:2}
+.tbl-scroll{overflow:auto}
+.th-sort{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:none;border:0;padding:0;border-radius:4px;font:inherit;font-weight:700;color:inherit;text-align:left}
+th.num .th-sort span:first-child{margin-left:auto}
+.th-sort:hover{color:var(--ink)}
+.arr{font-size:9px;color:var(--hg-500);letter-spacing:-1px}.arr.idle{color:var(--line);font-size:8px}
+.th-sort:hover .arr.idle{color:var(--muted)}
+th[aria-sort="ascending"],th[aria-sort="descending"]{color:var(--ink)}
+td.wrap{white-space:normal;min-width:260px;max-width:420px}
+.freeze td:first-child,.freeze th:first-child{position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--line)}
+.freeze th:first-child{z-index:3;background:var(--hg-50)}
+tr.click:hover td{background:var(--hg-50)}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--hg-50)}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.c-ok{background:var(--ok-bg);color:var(--ok)}.c-warn{background:var(--warn-bg);color:var(--warn)}.c-bad{background:var(--bad-bg);color:var(--bad)}.c-info{background:var(--info-bg);color:var(--info)}.c-mute{background:var(--hg-50);color:var(--muted);border:1px solid var(--line)}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+
+/* Dashboard */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.kpi span{display:block;font-size:13px;color:var(--muted);font-weight:600}
+.kpi b{display:block;font-size:26px;letter-spacing:-.02em;margin-top:2px;font-variant-numeric:tabular-nums}
+.kpi small{color:var(--muted);font-size:12px}
+.kpi.lead{background:var(--hg);border-color:var(--hg);color:#fff}.kpi.lead span,.kpi.lead small{color:#bfe0cc}
+.bars{display:flex;flex-direction:column;gap:8px}
+.bar{display:grid;grid-template-columns:110px 1fr 170px;gap:10px;align-items:center;font-size:13.5px}
+.bar-track{height:12px;background:var(--hg-50);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.bar-fill{height:100%;background:var(--hg-500);border-radius:999px}
+.bar-fill.w{background:var(--warn)}.bar-fill.b{background:var(--bad)}
+.pct{display:inline-block;min-width:46px}
+.filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.ms{position:relative}
+.ms-btn{width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;font-weight:500;background:var(--field);padding:7px 30px 7px 12px;position:relative}
+.ms-btn::after{content:"▾";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.ms-btn[aria-expanded="true"]{border-color:var(--hg-500)}
+.ms-lbl{font-size:12px;color:var(--muted);font-weight:600}
+.ms-val{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.ms-pop{position:absolute;z-index:25;top:calc(100% + 4px);left:0;min-width:100%;width:max-content;max-width:min(320px,86vw);background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:8px}
+.ms-list{max-height:270px;overflow:auto;display:flex;flex-direction:column}
+.ms-list label{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:14px}
+.ms-list label:hover{background:var(--hg-50)}
+.ms-q{width:100%;margin-bottom:6px}
+.ms-foot{border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr));gap:16px}
+.charts .card{margin:0}
+.bar-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-fill.i{background:var(--info)}
+.pie{display:flex;flex-wrap:wrap;gap:18px;align-items:center}
+.pie-n{font-size:18px;font-weight:800;fill:var(--ink)}.pie-l{font-size:12px;fill:var(--muted)}
+.pie-legend{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14px;flex:1 1 160px}
+.pie-legend li{display:grid;grid-template-columns:12px 1fr auto auto;gap:8px;align-items:center}
+.sw{width:12px;height:12px;border-radius:4px}
+.absen{display:grid;grid-template-columns:minmax(0,420px) 1fr;gap:22px;align-items:start}
+.cam-box{position:relative;aspect-ratio:4/3;background:#0b1712;border-radius:14px;overflow:hidden}
+.cam-box video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.cam-msg{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;color:#dfeee5;font-size:14px}
+.lok{margin-top:14px;padding:10px 14px;border-radius:12px;font-size:14px;font-weight:600}
+.lok-ok{background:var(--ok-bg);color:var(--ok)}.lok-bad{background:var(--bad-bg);color:var(--bad)}.lok-warn{background:var(--warn-bg);color:var(--warn)}.lok-info{background:var(--info-bg);color:var(--info)}
+.uji{margin-top:16px;font-size:13px;color:var(--muted)}.uji summary{cursor:pointer;font-weight:600}
+.toplist{margin:6px 0 0;padding-left:18px;font-size:13.5px}.toplist li{margin:2px 0}.toplist em{font-style:normal;font-weight:700;color:var(--bad);margin-left:4px}
+
+/* Penilaian */
+.grp-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin:20px 0 10px}
+.grp-head h3{margin:0;font-size:16px}
+.pn select{padding:5px 6px;font-size:13.5px;border-radius:8px}
+.pn td{vertical-align:top}
+.ref{display:block;margin-top:4px}
+.legend{display:flex;flex-wrap:wrap;gap:8px;font-size:12.5px;color:var(--muted);margin:8px 0 0}
+.matrix td,.matrix th{text-align:center}.matrix td:first-child,.matrix th:first-child{text-align:left}
+.dot{display:inline-block;width:12px;height:12px;border-radius:4px}
+.d-done{background:var(--ok)}.d-prog{background:var(--warn)}.d-not{background:var(--line)}
+
+/* Modal & toast */
+.modal{position:fixed;inset:0;z-index:50;display:none;align-items:flex-start;justify-content:center;padding:6vh 14px;background:rgba(5,20,13,.55);overflow:auto}
+.modal.open{display:flex}
+.modal-box{background:var(--card);border-radius:18px;width:min(720px,100%);padding:22px;border:1px solid var(--line)}
+.modal-box h2{margin:0 0 4px;font-size:19px}
+.modal-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+.x{border:0;background:transparent;font-size:22px;line-height:1;padding:4px 8px}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:16px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--hg-deep);color:#fff;padding:10px 18px;border-radius:12px;font-weight:600;font-size:14px;z-index:60;display:none;max-width:90vw}
+.toast.show{display:block}
+.toast.err{background:var(--bad)}
+.receipt{width:100%;max-width:260px;border-radius:12px;border:1px solid var(--line)}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:14px}.kv dt{color:var(--muted)}.kv dd{margin:0;font-weight:600}
+.split{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start}
+.note{background:var(--info-bg);color:var(--info);border-radius:12px;padding:10px 14px;font-size:13.5px;margin-bottom:14px}
+.warnbox{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 14px;font-size:13.5px}
+.big-check{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.clock{font-size:40px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.area-pick{display:flex;flex-wrap:wrap;gap:6px}
+.area-pick label{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:999px;font-size:13.5px;background:var(--field);cursor:pointer}
+.area-pick input{margin:0}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:1fr}
+  .side{position:fixed;left:0;top:0;bottom:0;width:min(290px,86vw);height:auto;z-index:45;transform:translateX(-105%);transition:transform .2s ease;padding-top:calc(18px + env(safe-area-inset-top,0px))}
+  body.nav-open .side{transform:none}
+  body.nav-open .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:44}
+  .menu-btn{display:inline-flex}
+  .top h1{font-size:20px}
+  .bar{grid-template-columns:78px 1fr 112px}
+  .split{grid-template-columns:1fr}
+  .absen{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+body::before{background:var(--hg-deep)}
+[hidden]{display:none!important}
+.kpi small a{color:inherit}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side" id="side" aria-label="Menu utama">
+    <div class="brand"><div class="brand-mark">HG</div><div><b>Management Delivery</b><small>Healthy Go</small></div></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot"><div class="me" id="meBox"></div><a href="/delivery/training/">Buka Training (LMS)</a><a href="/?portal=1">Kembali ke portal</a><a href="#" id="logoutLink">Keluar</a></div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <main><div class="top"><button class="menu-btn" id="menuBtn" aria-label="Buka menu">☰</button><h1 id="pageTitle">Management Delivery</h1></div><div id="view"><div class="card empty">Memuat…</div></div></main>
+</div>
+<div class="modal" id="modal" role="dialog" aria-modal="true"><div class="modal-box" id="modalBox"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/shared/config.js"></script>
+<script src="/shared/auth.js"></script>
+<script>
+/* Tabel profesional: header beku, scroll, sort lewat panah di kanan judul kolom */
+const TBL = {};
+function dataTable(id, cols, rows, opt = {}) {
+  const st = TBL[id] || (TBL[id] = { key: opt.sortKey || cols[0].key, dir: opt.sortDir || 'asc' });
+  const col = cols.find(c => c.key === st.key) || cols[0];
+  const val = r => col.sort ? col.sort(r) : r[col.key];
+  const sorted = [...rows].sort((a, b) => {
+    const x = val(a), y = val(b);
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;   // kosong selalu di bawah
+    const c = typeof x === 'string' ? x.localeCompare(y, 'id') : x - y;
+    return st.dir === 'asc' ? c : -c;
+  });
+  const arrow = c => st.key !== c.key ? '<span class="arr idle">▲▼</span>' : `<span class="arr">${st.dir === 'asc' ? '▲' : '▼'}</span>`;
+  return `<div class="tbl-wrap tbl-scroll" style="max-height:${opt.maxHeight || 520}px"><table class="dt${opt.freezeFirst ? ' freeze' : ''}" data-dt="${id}">
+    <thead><tr>${cols.map(c => `<th class="${c.num ? 'num' : ''}" aria-sort="${st.key === c.key ? (st.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="th-sort" data-sort="${c.key}" title="Urutkan ${esc(c.label)}"><span>${c.label}</span>${arrow(c)}</button></th>`).join('')}</tr></thead>
+    <tbody>${sorted.map(r => `<tr ${opt.rowAttr ? opt.rowAttr(r) : ''}>${cols.map(c => `<td class="${c.num ? 'num' : ''}${c.wrap ? ' wrap' : ''}">${c.render ? c.render(r) : esc(r[c.key])}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty">${opt.empty || 'Tidak ada data.'}</td></tr>`}</tbody>
+  </table></div>`;
+}
+function bindDataTable(root, id, redraw) {
+  root.querySelectorAll(`table[data-dt="${id}"] [data-sort]`).forEach(b => b.onclick = () => {
+    const st = TBL[id];
+    if (st.key === b.dataset.sort) st.dir = st.dir === 'asc' ? 'desc' : 'asc';
+    else { st.key = b.dataset.sort; st.dir = b.closest('th').classList.contains('num') ? 'desc' : 'asc'; }
+    redraw();
+  });
+}
+
+/* =====================================================================
+   MANAGEMENT DELIVERY — tersambung ke Supabase.
+   Keamanan data dijaga RLS & fungsi database; menu di sini hanya tampilan.
+   ===================================================================== */
+const { sb } = HGAuth;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+const isodow = s => ((parse(s).getDay() + 6) % 7) + 1;
+const mondayOf = s => addDays(s, -(isodow(s) - 1));
+const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+const fmtDate = s => { const d = parse(s.slice(0, 10)); return d.getDate() + ' ' + BULAN[d.getMonth()] + ' ' + d.getFullYear(); };
+const fmtShort = s => { const d = parse(s); return HARI[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth() + 1); };
+const fmtDT = s => { const d = new Date(s); return d.getDate() + ' ' + BULAN[d.getMonth()] + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const monthKey = s => s.slice(0, 7), monthLabel = m => BULAN[Number(m.slice(5, 7)) - 1] + '-' + m.slice(2, 4);
+const rupiah = n => 'Rp ' + Math.round(n || 0).toLocaleString('id-ID');
+const normName = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+const opt = (v, l, sel) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(l)}</option>`;
+const TODAY = iso(new Date());
+const nowHM = () => { const n = new Date(); return pad(n.getHours()) + ':' + pad(n.getMinutes()); };
+
+let ME = null, R = {};   // R = peran user (hanya untuk tampilan)
+const D = { branches: [], areas: [], korlap: [], points: [], sessions: [], targetDefault: [], people: [], penugasan: [] };
+const area = id => D.areas.find(a => a.id === id) || {};
+const branch = id => D.branches.find(b => b.id === id) || {};
+const person = id => D.people.find(p => p.id === id) || (ME && ME.id === id ? ME : {});
+const areaOf = pid => (D.penugasan.find(x => x.profile_id === pid && !x.selesai) || {}).area_id || null;
+const kurirList = ({ semua = false } = {}) => D.people.filter(p => p.position_id === 'kurir' && (semua || p.aktif));
+const korlapAktif = areaId => D.korlap.filter(k => k.area_id === areaId && !k.selesai);
+const myAreaIds = () => R.staf ? D.areas.map(a => a.id) : D.korlap.filter(k => k.korlap_id === ME.id && !k.selesai).map(k => k.area_id);
+const kurirSessions = d => D.sessions.filter(s => s.untuk === 'kurir' && s.hari.includes(isodow(d))).map(s => s.sesi);
+
+/* ---------- Data ---------- */
+async function q(p) { const { data, error } = await p; if (error) throw new Error(error.message); return data; }
+async function loadAll() {
+  const [b, a, k, pt, s, td, pe, pg] = await Promise.all([
+    q(sb.from('dlv_branches').select('*').order('nama')),
+    q(sb.from('dlv_areas').select('*').order('nama')),
+    q(sb.from('dlv_area_korlap').select('*')),
+    q(sb.from('attendance_points').select('*').order('nama')),
+    q(sb.from('attendance_sessions').select('*')),
+    q(sb.from('dlv_target_default').select('*')),
+    q(sb.from('profiles').select('id, nama, username, email, division_id, position_id, kontrak, aktif').eq('division_id', 'DLV').order('nama')),
+    q(sb.from('dlv_penugasan').select('*'))
+  ]);
+  Object.assign(D, { branches: b, areas: a, korlap: k, points: pt, sessions: s, targetDefault: td, people: pe, penugasan: pg });
+}
+async function fnAkun(body) {
+  const { data, error } = await sb.functions.invoke('admin-akun', { body });
+  if (error) { let m = error.message; try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (_) { } throw new Error(m); }
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+async function signedUrl(bucket, path) { if (!path) return null; const { data } = await sb.storage.from(bucket).createSignedUrl(path, 600); return data ? data.signedUrl : null; }
+
+/* ---------- UI umum ---------- */
+function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.className = 'toast', err ? 6000 : 3400); }
+async function run(btn, fn) { const l = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Memproses…'; } try { return await fn(); } catch (e) { toast(e.message, true); } finally { if (btn) { btn.disabled = false; btn.textContent = l; } } }
+function openModal(html) { $('#modalBox').innerHTML = html; $('#modal').classList.add('open'); const f = $('#modalBox').querySelector('input,select,textarea,button:not(.x)'); f && f.focus(); }
+function closeModal() { $('#modal').classList.remove('open'); }
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' || e.target.closest('[data-close]')) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); document.body.classList.remove('nav-open'); } });
+const modalHead = (t, s) => `<div class="modal-head"><div><h2>${esc(t)}</h2>${s ? `<p class="sub" style="margin:0">${s}</p>` : ''}</div><button class="x" data-close aria-label="Tutup">×</button></div>`;
+const statusChip = s => ({ Hadir: 'c-ok', Lengkap: 'c-ok', Approved: 'c-ok', Izin: 'c-info', Sakit: 'c-info', Waiting: 'c-warn', 'Belum Punya': 'c-warn', Alpa: 'c-bad', 'Kondisi Buruk': 'c-bad', Rejected: 'c-bad' }[s] || 'c-mute');
+function areaSelect(id, value, { all = 'Semua area', ids = myAreaIds() } = {}) {
+  const list = D.areas.filter(a => ids.includes(a.id));
+  return `<select id="${id}">${all ? `<option value="">${all}</option>` : ''}${D.branches.map(b => { const g = list.filter(a => a.branch_id === b.id); return g.length ? `<optgroup label="${esc(b.nama)}">${g.map(a => opt(a.id, a.nama + (a.aktif ? '' : ' (nonaktif)'), value)).join('')}</optgroup>` : ''; }).join('')}</select>`;
+}
+function showPassword(title, nama, login, pw) {
+  openModal(`${modalHead(title, esc(nama))}<div class="note">Berikan data login ini ke kurirnya dan minta ia mengganti password lewat <b>Ganti password</b> di portal. Password ini hanya ditampilkan sekali.</div>
+  <dl class="kv"><dt>Alamat</dt><dd>${esc(location.origin)}</dd><dt>Login dengan</dt><dd>${esc(login)}</dd><dt>Password</dt><dd><code style="font-size:16px">${esc(pw)}</code></dd></dl>
+  <div class="actions"><button id="pwCopy">Salin data login</button><button class="btn-primary" data-close>Selesai</button></div>`);
+  $('#pwCopy').onclick = () => navigator.clipboard.writeText(`Login Healthy Go\nAlamat: ${location.origin}\nLogin dengan: ${login}\nPassword: ${pw}`).then(() => toast('Data login disalin.'), () => toast('Gagal menyalin.', true));
+}
+
+/* ---------- Menu ---------- */
+const NAV = [
+  { id: 'dashboard', label: 'Ringkasan', ok: () => true },
+  { grp: 'Lapangan' },
+  { id: 'penilaian', label: 'Isi penilaian', ok: () => R.admin || R.korlap },
+  { id: 'laporan', label: 'Laporan penilaian', ok: () => true },
+  { id: 'absensi', label: 'Absensi', ok: () => true },
+  { grp: 'Administrasi' },
+  { id: 'reimburse', label: 'Reimbursement', ok: () => R.admin || R.manajer },
+  { id: 'akun', label: 'Akun kurir', ok: () => R.admin || R.hrd },
+  { id: 'pengaturan', label: 'Pengaturan', ok: () => R.admin }
+];
+
+/* ---------- Ringkasan ---------- */
+async function pageDashboard(v) {
+  v.innerHTML = '<div class="card empty">Memuat…</div>';
+  const ids = myAreaIds(), kur = kurirList().filter(k => ids.includes(areaOf(k.id)));
+  const [abs, rb] = await Promise.all([
+    q(sb.from('attendance').select('profile_id, sesi, status').eq('tanggal', TODAY)),
+    (R.admin || R.manajer) ? q(sb.from('dlv_reimburse').select('id', { count: 'exact' }).eq('status', 'Waiting')) : Promise.resolve([])
+  ]);
+  const kid = new Set(kur.map(k => k.id)), hadir = new Set(abs.filter(a => kid.has(a.profile_id) && a.status === 'Hadir').map(a => a.profile_id));
+  const tanpaArea = kurirList().filter(k => !areaOf(k.id)).length;
+  v.innerHTML = `<div class="kpis">
+    <div class="kpi lead"><span>Kurir aktif</span><b>${kur.length}</b><small>${ids.length} area</small></div>
+    <div class="kpi"><span>Sudah absen hari ini</span><b>${hadir.size}</b><small>dari ${kur.length} kurir</small></div>
+    ${(R.admin || R.manajer) ? `<div class="kpi"><span>Reimburse menunggu</span><b>${rb.length}</b><small><a href="#reimburse">Lihat</a></small></div>` : ''}
+    <div class="kpi"><span>Titik absensi aktif</span><b>${D.points.filter(p => p.aktif).length}</b></div></div>
+  ${R.admin && (tanpaArea || !D.areas.length || !D.points.length) ? `<div class="card"><h2>Perlu dilengkapi</h2><ul class="small" style="margin:8px 0 0;padding-left:18px">
+    ${!D.areas.length ? '<li>Belum ada area. Buka <a href="#pengaturan">Pengaturan → Area & korlap</a>.</li>' : ''}
+    ${!D.points.length ? '<li>Belum ada titik absensi. Buka <a href="#pengaturan">Pengaturan → Titik absensi</a>.</li>' : ''}
+    ${tanpaArea ? `<li>${tanpaArea} kurir belum punya area. Buka <a href="#akun">Akun kurir</a>.</li>` : ''}</ul></div>` : ''}
+  <div class="card"><h2>Dashboard performa</h2><p class="sub" style="margin:0">Grafik box, delivery time, complaint, dan cost akan muncul di sini setelah sinkronisasi spreadsheet dipasang.</p></div>`;
+}
+
+/* ---------- Akun kurir ---------- */
+const KS = { q: '', area: '', status: 'aktif' };
+function pageAkun(v) {
+  v.innerHTML = `<div class="card"><div class="row">
+    <label class="f grow"><span>Cari</span><input id="kQ" value="${esc(KS.q)}" placeholder="Nama, username, atau email"></label>
+    <label class="f"><span>Area</span>${areaSelect('kArea', KS.area, { ids: D.areas.map(a => a.id) }).replace('<option value="">Semua area</option>', '<option value="">Semua area</option><option value="-">Belum ada area</option>')}</label>
+    <label class="f"><span>Status</span><select id="kSt">${[['aktif', 'Aktif'], ['nonaktif', 'Nonaktif'], ['', 'Semua']].map(([k, l]) => opt(k, l, KS.status)).join('')}</select></label>
+    ${R.admin ? '<button class="btn-primary" id="kAdd">Tambah kurir</button>' : ''}</div>
+    ${R.admin ? '' : '<p class="small muted" style="margin:10px 0 0">Anda bisa melihat daftar kurir. Pembuatan dan perubahan akun dilakukan Admin Delivery.</p>'}</div>
+  <div class="card" id="kOut"></div>`;
+  const draw = () => {
+    KS.q = $('#kQ').value; KS.area = $('#kArea').value; KS.status = $('#kSt').value;
+    const qq = normName(KS.q);
+    const rows = kurirList({ semua: true }).map(k => ({ ...k, area_id: areaOf(k.id), areaNama: area(areaOf(k.id)).nama || '' }))
+      .filter(k => (!KS.area || (KS.area === '-' ? !k.area_id : k.area_id === KS.area)) && (!KS.status || (KS.status === 'aktif') === k.aktif) && (!qq || normName(k.nama).includes(qq) || k.username.includes(qq) || (k.email || '').includes(qq)));
+    const cols = [
+      { key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama)}</b><br><span class="small muted">${esc(r.username)}${r.email ? ' · ' + esc(r.email) : ''}</span>` },
+      { key: 'areaNama', label: 'Area', render: r => r.area_id ? esc(r.areaNama) + `<br><span class="small muted">${esc(branch(area(r.area_id).branch_id).nama || '')}</span>` : '<span class="chip c-warn">Belum ada</span>' },
+      { key: 'kontrak', label: 'Kontrak', render: r => esc(r.kontrak) || '—' },
+      { key: 'aktif', label: 'Status', sort: r => r.aktif ? 1 : 0, render: r => r.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>' },
+      ...(R.admin ? [{ key: 'aksi', label: '', sort: () => 0, render: r => `<span class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn-soft btn-sm" data-edit="${r.id}">Ubah</button><button class="btn-sm" data-reset="${r.id}">Reset password</button><button class="btn-sm ${r.aktif ? 'btn-danger' : ''}" data-akt="${r.id}">${r.aktif ? 'Nonaktifkan' : 'Aktifkan'}</button></span>` }] : [])
+    ];
+    $('#kOut').innerHTML = `<p class="sub">${rows.length} kurir. Nama harus sama persis dengan di spreadsheet SLA, complaint, dan cost.</p>` + dataTable('kurir', cols, rows, { sortKey: 'nama', freezeFirst: true, maxHeight: 620, empty: 'Belum ada kurir.' });
+    bindDataTable($('#kOut'), 'kurir', draw);
+    $('#kOut').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => kurirForm(b.dataset.edit, draw));
+    $('#kOut').querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { const p = person(b.dataset.reset); if (!confirm('Reset password ' + p.nama + '?')) return; run(b, async () => { const r = await fnAkun({ action: 'reset_password', id: p.id }); showPassword('Password baru', p.nama, p.username + (p.email ? ' atau ' + p.email : ''), r.password_sementara); }); });
+    $('#kOut').querySelectorAll('[data-akt]').forEach(b => b.onclick = () => { const p = person(b.dataset.akt), was = p.aktif; if (was && !confirm('Nonaktifkan ' + p.nama + '? Ia langsung tidak bisa login.')) return; run(b, async () => { await fnAkun({ action: 'set_aktif', id: p.id, aktif: !was }); await loadAll(); toast(p.nama + (was ? ' dinonaktifkan.' : ' diaktifkan.')); draw(); }); });
+  };
+  $('#kQ').oninput = draw; $('#kArea').onchange = draw; $('#kSt').onchange = draw;
+  if ($('#kAdd')) $('#kAdd').onclick = () => kurirForm(null, draw);
+  draw();
+}
+/** Pindah area: tutup penugasan lama (riwayat tetap ada), buka penugasan baru. */
+async function setArea(profileId, areaId) {
+  const cur = D.penugasan.find(x => x.profile_id === profileId && !x.selesai);
+  if (cur && cur.area_id === areaId) return;
+  if (cur) {
+    if (cur.mulai >= TODAY) await q(sb.from('dlv_penugasan').delete().eq('id', cur.id));
+    else await q(sb.from('dlv_penugasan').update({ selesai: addDays(TODAY, -1) }).eq('id', cur.id));
+  }
+  if (areaId) await q(sb.from('dlv_penugasan').insert({ profile_id: profileId, area_id: areaId, mulai: TODAY }));
+}
+function kurirForm(id, after) {
+  const k = id ? person(id) : { nama: '', username: '', email: '', kontrak: 'Full Time' };
+  openModal(`${modalHead(id ? 'Ubah kurir' : 'Tambah kurir', id ? '' : 'Password sementara dibuat otomatis dan ditampilkan setelah disimpan.')}
+  <div class="form-grid">
+    <label class="f"><span>Nama lengkap</span><input id="fNama" value="${esc(k.nama)}" placeholder="Sama persis dengan di spreadsheet"></label>
+    <label class="f"><span>Username</span><input id="fUser" value="${esc(k.username)}" autocapitalize="none"></label>
+    <label class="f"><span>Email (opsional)</span><input id="fEmail" type="email" value="${esc(k.email || '')}"></label>
+    <label class="f"><span>Area</span>${areaSelect('fArea', id ? areaOf(id) : '', { all: 'Pilih area', ids: D.areas.filter(a => a.aktif).map(a => a.id) })}</label>
+    <label class="f"><span>Kontrak</span><select id="fKon">${['Full Time', 'Part Time'].map(x => opt(x, x, k.kontrak)).join('')}</select></label>
+  </div>
+  <div class="actions"><button data-close>Batal</button><button class="btn-primary" id="fSave">${id ? 'Simpan perubahan' : 'Buat akun kurir'}</button></div>`);
+  $('#fNama').oninput = e => { if (!id) $('#fUser').value = e.target.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, ''); };
+  $('#fSave').onclick = () => run($('#fSave'), async () => {
+    const areaId = $('#fArea').value; if (!areaId) throw new Error('Pilih area.');
+    const body = { nama: $('#fNama').value, username: $('#fUser').value.trim().toLowerCase(), email: $('#fEmail').value.trim().toLowerCase() || null, kontrak: $('#fKon').value, position_id: 'kurir', division_id: 'DLV' };
+    if (id) {
+      await fnAkun({ action: 'update', id, ...body }); await setArea(id, areaId);
+      await loadAll(); closeModal(); toast('Data kurir diperbarui.'); after();
+    } else {
+      const r = await fnAkun({ action: 'create', ...body });
+      try { await setArea(r.id, areaId); } catch (e) { toast('Akun dibuat, tetapi area gagal disimpan: ' + e.message, true); }
+      await loadAll(); after();
+      showPassword('Akun kurir dibuat', body.nama, body.username + (body.email ? ' atau ' + body.email : ''), r.password_sementara);
+    }
+  });
+}
+
+/* ---------- Absensi ---------- */
+let ATab = 'saya';
+function pageAbsensi(v) {
+  stopCam();
+  v.innerHTML = `<div class="tabs" role="tablist">${[['saya', 'Absen saya'], ['rekap', 'Rekap absensi kurir']].map(([k, l]) => `<button role="tab" aria-selected="${ATab === k}" data-t="${k}">${l}</button>`).join('')}</div><div id="aOut"></div>`;
+  v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { ATab = b.dataset.t; pageAbsensi(v); });
+  ATab === 'saya' ? absenSaya() : absenRekap();
+}
+let CAM = null;
+const AB = { pos: null, posErr: '', camErr: '', camReady: false, mine: [] };
+function stopCam() { if (CAM) { CAM.getTracks().forEach(t => t.stop()); CAM = null; } AB.camReady = false; }
+function haversine(a, b, c, d) { const R0 = 6371000, t = x => x * Math.PI / 180, dl = t(c - a), dn = t(d - b); const h = Math.sin(dl / 2) ** 2 + Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(dn / 2) ** 2; return 2 * R0 * Math.asin(Math.min(1, Math.sqrt(h))); }
+const fmtJarak = m => m >= 1000 ? (m / 1000).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' km' : Math.round(m) + ' m';
+const titikSaya = () => D.points.filter(t => t.aktif && !t.area_id && (!t.division_id || t.division_id === ME.division_id));
+function lokasi() {
+  const list = titikSaya();
+  if (!list.length) return { ok: false, tone: 'bad', msg: 'Belum ada titik absensi untuk staf. Admin perlu menambah titik yang berlaku untuk semua.' };
+  if (!AB.pos) return { ok: false, tone: AB.posErr ? 'bad' : 'info', msg: AB.posErr || 'Mencari lokasi Anda…' };
+  const { latitude: lat, longitude: lng, accuracy: acc } = AB.pos;
+  if (acc > 150) return { ok: false, tone: 'warn', msg: `Akurasi GPS rendah (±${Math.round(acc)} m). Pindah ke tempat terbuka lalu cek ulang.` };
+  const n = list.map(t => ({ t, d: haversine(lat, lng, t.lat, t.lng) })).sort((a, b) => a.d - b.d)[0];
+  return n.d <= n.t.radius_m ? { ok: true, tone: 'ok', msg: `Dalam radius: ${fmtJarak(n.d)} dari ${n.t.nama}.`, lat, lng, acc } : { ok: false, tone: 'bad', msg: `Di luar radius: ${fmtJarak(n.d)} dari ${n.t.nama}. Maksimal ${n.t.radius_m} m.` };
+}
+function cekLokasi() {
+  AB.pos = null; AB.posErr = ''; updAbsen();
+  if (!navigator.geolocation) { AB.posErr = 'Browser tidak mendukung lokasi.'; return updAbsen(); }
+  navigator.geolocation.getCurrentPosition(p => { AB.pos = p.coords; updAbsen(); }, e => { AB.posErr = e.code === 1 ? 'Izin lokasi ditolak. Izinkan lokasi untuk situs ini, lalu cek ulang.' : 'Lokasi belum terbaca. Coba cek ulang.'; updAbsen(); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+}
+async function startCam() {
+  AB.camErr = ''; AB.camReady = false; updAbsen();
+  try { stopCam(); CAM = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false }); const vd = $('#cam'); if (!vd) return stopCam(); vd.srcObject = CAM; await vd.play(); AB.camReady = true; }
+  catch (e) { AB.camErr = e.name === 'NotAllowedError' ? 'Izin kamera ditolak. Izinkan kamera untuk situs ini.' : 'Kamera tidak bisa dibuka (' + e.name + ').'; }
+  updAbsen();
+}
+function snapBlob(sesi) {
+  return new Promise(res => {
+    const vd = $('#cam'), w = Math.min(640, vd.videoWidth || 640), h = Math.round((vd.videoHeight || 480) * w / (vd.videoWidth || 640));
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.drawImage(vd, 0, 0, w, h);
+    x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(0, h - 30, w, 30); x.fillStyle = '#fff'; x.font = '600 14px sans-serif'; x.fillText(`${ME.nama} · ${sesi} · ${fmtDate(TODAY)} ${nowHM()}`, 10, h - 10);
+    c.toBlob(res, 'image/jpeg', .7);
+  });
+}
+const sesiStaf = () => D.sessions.filter(s => s.untuk === 'staf' && s.hari.includes(isodow(TODAY))).sort((a, b) => a.jam_mulai.localeCompare(b.jam_mulai));
+async function absenSaya() {
+  const out = $('#aOut');
+  if (ME.position_id === 'kurir') { out.innerHTML = '<div class="card empty">Kurir absen lewat aplikasi Kurir.</div>'; return; }
+  AB.mine = await q(sb.from('attendance').select('*').eq('profile_id', ME.id).gte('tanggal', addDays(TODAY, -6)).order('tanggal', { ascending: false }));
+  const ses = sesiStaf();
+  out.innerHTML = `<div class="card"><div class="absen">
+    <div class="cam-box"><video id="cam" playsinline muted autoplay></video><div class="cam-msg" id="camMsg"></div></div>
+    <div><div class="clock" id="clock">${nowHM()}</div><div class="muted">${fmtDate(TODAY)}</div>
+      <div class="lok" id="lokBox" role="status"></div>
+      <div class="row" style="margin-top:8px"><button class="btn-sm" id="lokBtn">Cek ulang lokasi</button><button class="btn-sm" id="camBtn">Nyalakan kamera</button></div>
+      <div class="actions" style="justify-content:flex-start" id="absenBtns"></div></div></div></div>
+  <div class="card"><h2>Riwayat 7 hari</h2><div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Tanggal</th><th>Sesi</th><th>Status</th><th>Jam</th><th>Titik</th><th class="num">Jarak</th></tr></thead><tbody>
+  ${AB.mine.map(a => `<tr><td>${fmtShort(a.tanggal)}</td><td>${a.sesi}</td><td><span class="chip ${statusChip(a.status)}">${a.status}</span></td><td>${a.jam ? a.jam.slice(0, 5) : '—'}</td><td>${esc((D.points.find(t => t.id === a.point_id) || {}).nama || '—')}</td><td class="num">${a.jarak_m != null ? a.jarak_m + ' m' : '—'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Belum ada riwayat.</td></tr>'}</tbody></table></div></div>`;
+  if (!ses.length) { $('#absenBtns').innerHTML = '<span class="muted">Tidak ada jadwal absen hari ini.</span>'; }
+  $('#lokBtn').onclick = cekLokasi; $('#camBtn').onclick = startCam;
+  clearInterval(absenSaya.t); absenSaya.t = setInterval(() => { const c = $('#clock'); if (c) c.textContent = nowHM(); }, 30000);
+  startCam(); cekLokasi();
+}
+function updAbsen() {
+  const box = $('#lokBox'); if (!box) return;
+  const l = lokasi(); box.className = 'lok lok-' + l.tone; box.textContent = l.msg;
+  const cm = $('#camMsg'); cm.textContent = AB.camErr || (AB.camReady ? '' : 'Menyalakan kamera…'); cm.hidden = AB.camReady && !AB.camErr; $('#camBtn').hidden = AB.camReady;
+  const today = AB.mine.filter(a => a.tanggal === TODAY), t = nowHM() + ':00';
+  const ses = sesiStaf(); if (!ses.length) return;
+  $('#absenBtns').innerHTML = ses.map(s => {
+    const done = today.find(a => a.sesi === s.sesi);
+    if (done) return `<span class="chip ${statusChip(done.status)}">${s.sesi} ${done.jam ? done.jam.slice(0, 5) : done.status}</span>`;
+    const buka = t >= s.jam_mulai && t <= s.jam_selesai, why = !buka ? `Buka ${s.jam_mulai.slice(0, 5)}–${s.jam_selesai.slice(0, 5)}` : !AB.camReady ? 'Kamera belum menyala' : !l.ok ? 'Lokasi belum sesuai' : '';
+    return `<button class="btn-primary" data-absen="${s.sesi}" ${why ? 'disabled' : ''} title="${why}">Absen ${s.sesi.toLowerCase()}</button>`;
+  }).join('');
+  $('#absenBtns').querySelectorAll('[data-absen]').forEach(b => b.onclick = () => run(b, async () => {
+    const lk = lokasi(); if (!lk.ok) throw new Error(lk.msg);
+    const blob = await snapBlob(b.dataset.absen), path = `${ME.id}/${TODAY}-${b.dataset.absen}-${Date.now()}.jpg`;
+    const up = await sb.storage.from('foto-absen').upload(path, blob, { contentType: 'image/jpeg' }); if (up.error) throw new Error('Gagal unggah foto: ' + up.error.message);
+    const r = await q(sb.rpc('absen', { p_sesi: b.dataset.absen, p_lat: lk.lat, p_lng: lk.lng, p_akurasi: lk.acc, p_foto: path }));
+    toast(`Absen ${b.dataset.absen.toLowerCase()} tercatat pukul ${r.jam} di ${r.titik}.`); absenSaya();
+  }));
+}
+const AR = { date: TODAY, area: '' };
+async function absenRekap() {
+  const out = $('#aOut');
+  out.innerHTML = `<div class="card"><div class="row"><label class="f"><span>Tanggal</span><input type="date" id="arDate" value="${AR.date}" max="${TODAY}"></label><label class="f"><span>Area</span>${areaSelect('arArea', AR.area)}</label></div><div id="arOut" style="margin-top:14px"><div class="empty">Memuat…</div></div></div>`;
+  const draw = async () => {
+    AR.date = $('#arDate').value; AR.area = $('#arArea').value;
+    const ses = kurirSessions(AR.date), ids = AR.area ? [AR.area] : myAreaIds();
+    const ks = kurirList().filter(k => ids.includes(areaOf(k.id)));
+    if (!ses.length) { $('#arOut').innerHTML = '<div class="empty">Tidak ada sesi kurir pada tanggal ini.</div>'; return; }
+    const abs = ks.length ? await q(sb.from('attendance').select('*').eq('tanggal', AR.date).in('profile_id', ks.map(k => k.id))) : [];
+    const cnt = { Hadir: 0, Izin: 0, Sakit: 0, Tidak: 0 };
+    const rows = ks.map(k => `<tr><td><b>${esc(k.nama)}</b></td><td>${esc(area(areaOf(k.id)).nama)}</td>${ses.map(s => { const a = abs.find(x => x.profile_id === k.id && x.sesi === s); if (!a) { cnt.Tidak++; return `<td><span class="chip c-bad">${AR.date === TODAY ? 'Belum absen' : 'Tidak absen'}</span>${R.admin ? ` <button class="btn-sm" data-ijin="${k.id}|${s}">Izin/Sakit</button>` : ''}</td>`; } cnt[a.status]++; return `<td><span class="chip ${statusChip(a.status)}">${a.status === 'Hadir' ? a.jam.slice(0, 5) : a.status}</span>${a.foto_path ? ` <button class="btn-sm" data-foto="${esc(a.foto_path)}" data-n="${esc(k.nama)} · ${s}">Foto</button>` : ''}${a.point_id ? `<span class="ref small muted">${esc((D.points.find(t => t.id === a.point_id) || {}).nama || '')} · ${a.jarak_m} m</span>` : ''}${a.catatan ? `<span class="ref small muted">${esc(a.catatan)}</span>` : ''}</td>`; }).join('')}</tr>`).join('');
+    $('#arOut').innerHTML = `<div class="legend" style="margin:0 0 10px"><span class="chip c-ok">Hadir ${cnt.Hadir}</span><span class="chip c-info">Izin ${cnt.Izin}</span><span class="chip c-info">Sakit ${cnt.Sakit}</span><span class="chip c-bad">Tidak absen ${cnt.Tidak}</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Kurir</th><th>Area</th>${ses.map(s => `<th>${s}</th>`).join('')}</tr></thead><tbody>${rows || `<tr><td colspan="${2 + ses.length}" class="empty">Belum ada kurir di area ini.</td></tr>`}</tbody></table></div>`;
+    $('#arOut').querySelectorAll('[data-foto]').forEach(b => b.onclick = () => run(b, async () => { const u = await signedUrl('foto-absen', b.dataset.foto); if (!u) throw new Error('Foto tidak bisa dibuka.'); openModal(`${modalHead('Foto absen', esc(b.dataset.n))}<img src="${u}" alt="Foto absen" style="width:100%;border-radius:12px">`); }));
+    $('#arOut').querySelectorAll('[data-ijin]').forEach(b => b.onclick = () => {
+      const [pid, s] = b.dataset.ijin.split('|');
+      openModal(`${modalHead('Catat izin / sakit', esc(person(pid).nama) + ' · ' + s + ' · ' + fmtDate(AR.date))}<div class="form-grid"><label class="f"><span>Status</span><select id="ijSt"><option>Izin</option><option>Sakit</option></select></label></div><label class="f" style="margin-top:12px"><span>Catatan</span><textarea id="ijCat" rows="2" placeholder="contoh: surat dokter dikirim via WA"></textarea></label><div class="actions"><button data-close>Batal</button><button class="btn-primary" id="ijSave">Simpan</button></div>`);
+      $('#ijSave').onclick = () => run($('#ijSave'), async () => { await q(sb.rpc('catat_absen_admin', { p_profile: pid, p_tanggal: AR.date, p_sesi: s, p_status: $('#ijSt').value, p_catatan: $('#ijCat').value.trim() || null })); closeModal(); toast('Tercatat.'); draw(); });
+    });
+  };
+  $('#arDate').onchange = draw; $('#arArea').onchange = draw; draw().catch(e => $('#arOut').innerHTML = `<div class="empty">${esc(e.message)}</div>`);
+}
+
+/* ---------- Penilaian ---------- */
+const PEN_OPT = { lunch: ['Hadir', 'Alpa', 'Izin', 'Sakit'], dinner: ['Hadir', 'Alpa', 'Izin', 'Sakit'], tas: ['Lengkap', 'Belum Punya', 'Kondisi Buruk'], jaket: ['Lengkap', 'Belum Punya', 'Kondisi Buruk'], helm: ['Lengkap', 'Belum Punya', 'Kondisi Buruk'], sepatu: ['Lengkap', 'Belum Punya', 'Kondisi Buruk'] };
+const PEN_KEYS = Object.keys(PEN_OPT);
+const PS = { date: TODAY, areas: null };
+function pagePenilaian(v) {
+  const ids = R.admin ? D.areas.filter(a => a.aktif).map(a => a.id) : myAreaIds();
+  if (!PS.areas) PS.areas = ids.slice(); PS.areas = PS.areas.filter(x => ids.includes(x));
+  v.innerHTML = `<div class="card"><div class="row">
+    <label class="f"><span>Tanggal</span><input type="date" id="pDate" value="${PS.date}" min="${mondayOf(TODAY)}" max="${TODAY}"></label>
+    <div class="f grow"><span style="font-size:13px;font-weight:600;color:var(--muted)">Area</span><div class="area-pick">${ids.map(id => `<label><input type="checkbox" value="${id}" ${PS.areas.includes(id) ? 'checked' : ''}>${esc(area(id).nama)}</label>`).join('') || '<span class="muted small">Anda belum ditugaskan ke area mana pun.</span>'}</div></div>
+    <button class="btn-primary" id="pLoad">Muat data</button></div>
+    <p class="small muted" style="margin:10px 0 0">Bisa diisi untuk Senin minggu berjalan (${fmtDate(mondayOf(TODAY))}) sampai hari ini. Data absensi kurir tampil sebagai pembanding.</p></div><div id="pOut"></div>`;
+  $('#pLoad').onclick = () => { PS.date = $('#pDate').value; PS.areas = [...v.querySelectorAll('.area-pick input:checked')].map(i => i.value); drawPenilaian().catch(e => toast(e.message, true)); };
+  drawPenilaian().catch(e => toast(e.message, true));
+}
+function mismatch(val, a) { if (!val) return ''; const st = a ? a.status : null; if (val === 'Hadir' && st !== 'Hadir') return 'Tidak ada absen'; if (val !== 'Hadir' && st === 'Hadir') return 'Ada absen ' + a.jam.slice(0, 5); return ''; }
+async function drawPenilaian() {
+  const out = $('#pOut'), d = PS.date;
+  if (!d || d > TODAY || d < mondayOf(TODAY)) { out.innerHTML = '<div class="card empty">Pilih tanggal antara Senin minggu ini dan hari ini.</div>'; return; }
+  if (!PS.areas.length) { out.innerHTML = '<div class="card empty">Pilih minimal satu area, lalu klik Muat data.</div>'; return; }
+  const ses = kurirSessions(d); if (!ses.length) { out.innerHTML = '<div class="card empty">Tidak ada sesi pada tanggal ini.</div>'; return; }
+  out.innerHTML = '<div class="card empty">Memuat…</div>';
+  const ks = kurirList().filter(k => PS.areas.includes(areaOf(k.id)));
+  const [ex, abs] = ks.length ? await Promise.all([q(sb.from('dlv_penilaian').select('*').eq('tanggal', d).in('profile_id', ks.map(k => k.id))), q(sb.from('attendance').select('profile_id,sesi,status,jam').eq('tanggal', d).in('profile_id', ks.map(k => k.id)))]) : [[], []];
+  const ref = (pid, key) => { const s = key === 'lunch' ? ses[0] : ses[1]; if (!s) return { label: 'Tidak ada sesi', a: undefined, s }; const a = abs.find(x => x.profile_id === pid && x.sesi === s); return { s, a, label: a ? (a.status === 'Hadir' ? s + ' ' + a.jam.slice(0, 5) : a.status) : (d === TODAY ? 'Belum absen' : 'Tidak absen') }; };
+  const refHtml = (val, r) => { if (!r.s) return ''; const mm = mismatch(val, r.a); return mm ? `<span class="chip c-warn" title="${esc(mm)}">Tidak cocok: ${esc(r.label)}</span>` : `<span class="muted">Absen: ${esc(r.label)}</span>`; };
+  out.innerHTML = `<div class="card">${PS.areas.map(aid => {
+    const rows = ks.filter(k => areaOf(k.id) === aid), done = rows.filter(k => { const p = ex.find(e => e.profile_id === k.id); return p && PEN_KEYS.every(x => p[x]); }).length;
+    return `<div class="grp-head"><h3>${esc(area(aid).nama)} <span class="small muted">· ${done}/${rows.length} sudah dinilai</span></h3><button class="btn-soft btn-sm" data-fill="${aid}">Isi yang kosong: Hadir / Lengkap</button></div>
+    <div class="tbl-wrap pn"><table><thead><tr><th>Kurir</th>${PEN_KEYS.map(k => `<th>${k[0].toUpperCase() + k.slice(1)}</th>`).join('')}</tr></thead><tbody>
+    ${rows.map(k => { const p = ex.find(e => e.profile_id === k.id) || {}; return `<tr data-p="${k.id}" data-a="${aid}"><td><b>${esc(k.nama)}</b></td>${PEN_KEYS.map(key => { const r = key === 'lunch' || key === 'dinner' ? ref(k.id, key) : null; return `<td><select data-key="${key}"><option value="">—</option>${PEN_OPT[key].map(o => `<option ${p[key] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>${r ? `<span class="ref small" data-ref="${key}">${refHtml(p[key], r)}</span>` : ''}</td>`; }).join('')}</tr>`; }).join('') || '<tr><td colspan="7" class="empty">Belum ada kurir di area ini.</td></tr>'}
+    </tbody></table></div>`; }).join('')}<div class="actions"><button class="btn-primary" id="pSave">Simpan penilaian</button></div></div>`;
+  out.querySelectorAll('[data-fill]').forEach(b => b.onclick = () => out.querySelectorAll(`tr[data-a="${b.dataset.fill}"] select`).forEach(s => { if (!s.value) { s.value = PEN_OPT[s.dataset.key][0]; s.dispatchEvent(new Event('change')); } }));
+  out.querySelectorAll('tr[data-p] select').forEach(s => s.onchange = () => { const k = s.dataset.key; if (k !== 'lunch' && k !== 'dinner') return; const tr = s.closest('tr'); tr.querySelector(`[data-ref="${k}"]`).innerHTML = refHtml(s.value, ref(tr.dataset.p, k)); });
+  $('#pSave').onclick = () => run($('#pSave'), async () => {
+    const rows = [...out.querySelectorAll('tr[data-p]')].map(tr => { const r = { tanggal: d, profile_id: tr.dataset.p, area_id: tr.dataset.a }; tr.querySelectorAll('select').forEach(s => r[s.dataset.key] = s.value || null); return r; })
+      .filter(r => PEN_KEYS.some(k => r[k]) || ex.some(e => e.profile_id === r.profile_id));
+    if (!rows.length) throw new Error('Belum ada yang diisi.');
+    await q(sb.from('dlv_penilaian').upsert(rows, { onConflict: 'tanggal,profile_id' }));
+    toast(`Penilaian tersimpan. ${rows.filter(r => PEN_KEYS.every(k => r[k])).length} dari ${rows.length} lengkap.`); drawPenilaian();
+  });
+}
+let LTab = 'status';
+function pageLaporan(v) {
+  v.innerHTML = `<div class="tabs" role="tablist">${[['status', 'Status per area'], ['lihat', 'Lihat penilaian']].map(([k, l]) => `<button role="tab" aria-selected="${LTab === k}" data-t="${k}">${l}</button>`).join('')}</div><div id="lOut"><div class="card empty">Memuat…</div></div>`;
+  v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { LTab = b.dataset.t; pageLaporan(v); });
+  (LTab === 'status' ? lapStatus() : lapLihat()).catch(e => $('#lOut').innerHTML = `<div class="card empty">${esc(e.message)}</div>`);
+}
+async function lapStatus() {
+  const mon = mondayOf(TODAY), dates = []; for (let d = mon; d <= TODAY; d = addDays(d, 1)) if (kurirSessions(d).length) dates.push(d);
+  const ids = myAreaIds(), ks = kurirList().filter(k => ids.includes(areaOf(k.id)));
+  const pen = await q(sb.from('dlv_penilaian').select('*').gte('tanggal', mon).lte('tanggal', TODAY));
+  $('#lOut').innerHTML = `<div class="card"><h2>Minggu ini</h2><p class="sub">${fmtDate(mon)} – ${fmtDate(addDays(mon, 6))}. Angka = kurir dinilai lengkap / total kurir.</p><div class="tbl-wrap"><table class="matrix"><thead><tr><th>Area</th>${dates.map(d => `<th>${fmtShort(d)}</th>`).join('')}</tr></thead><tbody>
+  ${ids.map(aid => { const k = ks.filter(x => areaOf(x.id) === aid); return `<tr><td><b>${esc(area(aid).nama)}</b></td>${dates.map(d => { const ps = pen.filter(p => p.tanggal === d && p.area_id === aid), full = k.filter(x => { const p = ps.find(y => y.profile_id === x.id); return p && PEN_KEYS.every(z => p[z]); }).length; const st = k.length && full >= k.length ? 'd-done' : ps.length ? 'd-prog' : 'd-not'; return `<td><span class="dot ${st}"></span> <span class="small">${full}/${k.length}</span></td>`; }).join('')}</tr>`; }).join('') || '<tr><td class="empty">Tidak ada area.</td></tr>'}
+  </tbody></table></div><div class="legend" style="margin-top:12px"><span><span class="dot d-done"></span> Selesai</span><span><span class="dot d-prog"></span> Sedang berjalan</span><span><span class="dot d-not"></span> Belum</span></div></div>`;
+}
+const LS = { date: TODAY, area: '' };
+async function lapLihat() {
+  $('#lOut').innerHTML = `<div class="card"><div class="row"><label class="f"><span>Tanggal</span><input type="date" id="lDate" value="${LS.date}" max="${TODAY}"></label><label class="f"><span>Area</span>${areaSelect('lArea', LS.area)}</label></div><div id="lTbl" style="margin-top:14px"></div></div>`;
+  const draw = async () => {
+    LS.date = $('#lDate').value; LS.area = $('#lArea').value;
+    const rows = (await q(sb.from('dlv_penilaian').select('*').eq('tanggal', LS.date))).filter(r => !LS.area || r.area_id === LS.area);
+    $('#lTbl').innerHTML = rows.length ? `<div class="tbl-wrap"><table><thead><tr><th>Area</th><th>Kurir</th>${PEN_KEYS.map(k => `<th>${k[0].toUpperCase() + k.slice(1)}</th>`).join('')}<th>Dinilai oleh</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(area(r.area_id).nama)}</td><td><b>${esc(person(r.profile_id).nama || '—')}</b></td>${PEN_KEYS.map(k => `<td>${r[k] ? `<span class="chip ${statusChip(r[k])}">${r[k]}</span>` : '—'}</td>`).join('')}<td class="small">${esc(person(r.dinilai_oleh).nama || '—')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Belum ada penilaian untuk tanggal dan area ini.</div>';
+  };
+  $('#lDate').onchange = draw; $('#lArea').onchange = draw; await draw();
+}
+
+/* ---------- Reimbursement ---------- */
+let RTab = 'Waiting';
+const RT = { Estafet: 'Estafet', Parkir: 'Parking', Jarak: 'Distance' };
+async function pageReimburse(v) {
+  v.innerHTML = '<div class="card empty">Loading…</div>';
+  const all = await q(sb.from('dlv_reimburse').select('*').order('created_at', { ascending: false }).limit(1000));
+  const cnt = s => all.filter(r => r.status === s).length;
+  const rows = all.filter(r => r.status === RTab).map(r => ({ ...r, nama: person(r.profile_id).nama || '—', areaNama: area(areaOf(r.profile_id)).nama || '—', tipeNama: RT[r.tipe] }));
+  const cols = [
+    { key: 'created_at', label: 'Submitted', render: r => fmtDT(r.created_at) },
+    { key: 'nama', label: 'Courier', render: r => `<b>${esc(r.nama)}</b>` }, { key: 'areaNama', label: 'Area' },
+    { key: 'tipeNama', label: 'Type' }, { key: 'tanggal', label: 'Date · session', render: r => fmtDate(r.tanggal) + ' · ' + r.sesi },
+    { key: 'detail', label: 'Detail', sort: () => 0, render: r => r.tipe === 'Estafet' ? 'To ' + esc(r.tujuan) : r.tipe === 'Jarak' ? r.jarak_km + ' km · ' + esc(r.cust_terjauh) : 'Parking ticket' },
+    { key: 'nominal', label: 'Amount', num: true, render: r => r.nominal != null ? rupiah(r.nominal) : '—' }
+  ];
+  v.innerHTML = `${R.admin ? '' : '<div class="note">View only. Approvals are handled by the Delivery Admin.</div>'}
+  <div class="tabs" role="tablist">${['Waiting', 'Approved', 'Rejected'].map(s => `<button role="tab" aria-selected="${RTab === s}" data-t="${s}">${s} (${cnt(s)})</button>`).join('')}</div>
+  <div class="card">${dataTable('reimb', cols, rows, { sortKey: 'created_at', sortDir: 'desc', rowAttr: r => `class="click" data-r="${r.id}" tabindex="0"`, empty: 'No ' + RTab.toLowerCase() + ' requests.' })}
+  ${RTab === 'Approved' ? `<p class="small muted" style="margin:10px 0 0">Total approved: <b>${rupiah(rows.reduce((a, r) => a + (r.nominal || 0), 0))}</b></p>` : ''}</div>`;
+  v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { RTab = b.dataset.t; pageReimburse(v); });
+  bindDataTable(v, 'reimb', () => pageReimburse(v));
+  v.querySelectorAll('tr[data-r]').forEach(tr => { const go = () => reimburseDetail(all.find(r => r.id === tr.dataset.r), all, v); tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
+}
+async function reimburseDetail(r, all, v) {
+  const p = person(r.profile_id);
+  const photos = r.tipe === 'Jarak' ? [['Distance proof', r.foto_jarak_path], ['Farthest box', r.foto_box_path]] : [[r.tipe === 'Estafet' ? 'Handover photo' : 'Parking ticket', r.foto_path]];
+  const urls = await Promise.all(photos.map(x => signedUrl('foto-reimburse', x[1])));
+  const dup = all.filter(x => x.id !== r.id && x.profile_id === r.profile_id && x.tipe === r.tipe && x.tanggal === r.tanggal && x.sesi === r.sesi && x.status !== 'Rejected');
+  openModal(`${modalHead(RT[r.tipe] + ' · ' + fmtDate(r.tanggal), esc(p.nama || '') + ' · ' + esc(area(areaOf(r.profile_id)).nama || ''))}
+  ${dup.length ? '<div class="warnbox" style="margin-bottom:12px">Possible duplicate: same type, date and session already claimed.</div>' : ''}
+  <div class="photos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px">${photos.map((x, i) => urls[i] ? `<figure style="margin:0"><a href="${urls[i]}" target="_blank" rel="noopener"><img src="${urls[i]}" alt="${x[0]}" style="width:100%;border-radius:10px;border:1px solid var(--line)"></a><figcaption class="small muted">${x[0]}</figcaption></figure>` : `<div class="empty small">${x[0]}: not available</div>`).join('')}</div>
+  <dl class="kv"><dt>Status</dt><dd><span class="chip ${statusChip(r.status)}">${r.status}</span></dd><dt>Session</dt><dd>${r.sesi}</dd>
+  ${r.tipe === 'Estafet' ? `<dt>Destination</dt><dd>${esc(r.tujuan)}</dd>` : ''}${r.tipe === 'Jarak' ? `<dt>Distance</dt><dd>${r.jarak_km} km</dd><dt>Farthest customer</dt><dd>${esc(r.cust_terjauh)}</dd>` : ''}
+  <dt>Submitted</dt><dd>${fmtDT(r.created_at)}</dd>${r.nominal != null ? `<dt>Amount</dt><dd>${rupiah(r.nominal)}</dd>` : ''}${r.alasan_tolak ? `<dt>Reject reason</dt><dd style="font-weight:500">${esc(r.alasan_tolak)}</dd>` : ''}${r.diproses_oleh ? `<dt>Reviewed by</dt><dd>${esc(person(r.diproses_oleh).nama || '—')}</dd>` : ''}</dl>
+  ${R.admin && r.status === 'Waiting' ? `<div class="form-grid" style="margin-top:14px"><label class="f"><span>Amount to approve (Rp)</span><input id="rNom" inputmode="numeric" placeholder="e.g. 15.000"></label><label class="f"><span>Reject reason</span><input id="rWhy" placeholder="Required to reject"></label></div>
+  <div class="actions"><button class="btn-danger" id="rRej">Reject</button><button class="btn-primary" id="rApp">Approve</button></div>` : ''}`);
+  const nom = $('#rNom'); if (!nom) return;
+  nom.oninput = e => { const dg = e.target.value.replace(/\D/g, ''); e.target.value = dg ? Number(dg).toLocaleString('id-ID') : ''; };
+  const act = (btn, st) => run(btn, async () => { await q(sb.rpc('proses_reimburse', { p_id: r.id, p_status: st, p_nominal: st === 'Approved' ? Number(nom.value.replace(/\D/g, '')) || null : null, p_alasan: st === 'Rejected' ? $('#rWhy').value : null })); closeModal(); toast('Reimbursement ' + st.toLowerCase() + '.'); pageReimburse(v); });
+  $('#rApp').onclick = () => act($('#rApp'), 'Approved'); $('#rRej').onclick = () => act($('#rRej'), 'Rejected');
+}
+
+/* ---------- Pengaturan ---------- */
+let STab = 'area';
+function pagePengaturan(v) {
+  v.innerHTML = `<div class="tabs" role="tablist">${[['area', 'Branch, area & korlap'], ['titik', 'Titik absensi'], ['target', 'Target box']].map(([k, l]) => `<button role="tab" aria-selected="${STab === k}" data-t="${k}">${l}</button>`).join('')}</div><div id="sOut"></div>`;
+  v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { STab = b.dataset.t; pagePengaturan(v); });
+  Promise.resolve().then(() => ({ area: setArea_, titik: setTitik, target: setTarget })[STab]()).catch(e => toast(e.message, true));
+}
+function setArea_() {
+  const korlaps = D.people.filter(p => p.position_id === 'korlap' && p.aktif);
+  $('#sOut').innerHTML = `<div class="card"><h2>Branch</h2><div class="row" style="margin:10px 0">${D.branches.map(b => `<span class="chip c-mute">${esc(b.nama)} · ${D.areas.filter(a => a.branch_id === b.id).length} area</span>`).join(' ') || '<span class="muted small">Belum ada branch.</span>'}</div>
+    <div class="row"><label class="f grow"><span>Nama branch baru</span><input id="brNama" placeholder="contoh: CK Kapuk"></label><button class="btn-primary" id="brAdd">Tambah branch</button></div></div>
+  <div class="card"><h2>Area & korlap</h2><p class="sub">Satu area bisa dipegang lebih dari satu korlap. Penggantian korlap disimpan sebagai riwayat.</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Branch</th><th>Area</th><th class="num">Kurir aktif</th><th>Korlap</th><th>Status</th><th></th></tr></thead><tbody>
+  ${D.areas.map(a => `<tr><td>${esc(branch(a.branch_id).nama)}</td><td><b>${esc(a.nama)}</b></td><td class="num">${kurirList().filter(k => areaOf(k.id) === a.id).length}</td><td>${korlapAktif(a.id).map(x => esc(person(x.korlap_id).nama || '—')).join(', ') || '<span class="chip c-warn">Belum ada</span>'}</td><td>${a.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>'}</td><td><span class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn-soft btn-sm" data-ak="${a.id}">Atur korlap</button><button class="btn-sm" data-tg="${a.id}">${a.aktif ? 'Nonaktifkan' : 'Aktifkan'}</button></span></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Belum ada area.</td></tr>'}
+  </tbody></table></div>
+  <h3 style="font-size:15px;margin:20px 0 8px">Tambah area</h3>
+  <div class="row"><label class="f grow"><span>Nama area</span><input id="naNama" placeholder="contoh: PIK"></label><label class="f"><span>Branch</span><select id="naBr">${D.branches.map(b => opt(b.id, b.nama)).join('') || '<option value="">Tambah branch dulu</option>'}</select></label><button class="btn-primary" id="naAdd">Tambah area</button></div>
+  ${korlaps.length ? '' : '<p class="small muted" style="margin:12px 0 0">Belum ada akun korlap. Buat akun berjabatan Korlap (divisi Delivery) di Backoffice.</p>'}</div>`;
+  $('#brAdd').onclick = () => run($('#brAdd'), async () => { const n = $('#brNama').value.trim(); if (!n) throw new Error('Isi nama branch.'); const { error } = await sb.from('dlv_branches').insert({ nama: n }); if (error) throw new Error(/duplicate/.test(error.message) ? 'Branch sudah ada.' : error.message); await loadAll(); toast('Branch ditambahkan.'); setArea_(); });
+  $('#naAdd').onclick = () => run($('#naAdd'), async () => { const n = $('#naNama').value.trim(), b = $('#naBr').value; if (!n) throw new Error('Isi nama area.'); if (!b) throw new Error('Tambah branch dulu.'); const { error } = await sb.from('dlv_areas').insert({ nama: n, branch_id: b }); if (error) throw new Error(/duplicate/.test(error.message) ? 'Area sudah ada.' : error.message); await loadAll(); toast('Area ditambahkan.'); setArea_(); });
+  $('#sOut').querySelectorAll('[data-tg]').forEach(b => b.onclick = () => run(b, async () => { const a = area(b.dataset.tg); await q(sb.from('dlv_areas').update({ aktif: !a.aktif }).eq('id', a.id)); await loadAll(); setArea_(); }));
+  $('#sOut').querySelectorAll('[data-ak]').forEach(b => b.onclick = () => {
+    const a = area(b.dataset.ak), cur = korlapAktif(a.id).map(x => x.korlap_id), hist = D.korlap.filter(x => x.area_id === a.id && x.selesai);
+    openModal(`${modalHead('Korlap area ' + a.nama, esc(branch(a.branch_id).nama))}<div class="area-pick">${korlaps.map(k => `<label><input type="checkbox" value="${k.id}" ${cur.includes(k.id) ? 'checked' : ''}>${esc(k.nama)}</label>`).join('') || '<span class="muted">Belum ada akun korlap aktif.</span>'}</div>
+    ${hist.length ? `<p class="small muted" style="margin-top:14px">Riwayat: ${hist.map(x => `${esc(person(x.korlap_id).nama || '—')} (${fmtDate(x.mulai)} – ${fmtDate(x.selesai)})`).join(', ')}</p>` : ''}
+    <div class="actions"><button data-close>Batal</button><button class="btn-primary" id="akSave">Simpan</button></div>`);
+    $('#akSave').onclick = () => run($('#akSave'), async () => {
+      const pick = [...$('#modalBox').querySelectorAll('input:checked')].map(i => i.value);
+      for (const x of korlapAktif(a.id).filter(x => !pick.includes(x.korlap_id))) {
+        if (x.mulai >= TODAY) await q(sb.from('dlv_area_korlap').delete().eq('id', x.id)); else await q(sb.from('dlv_area_korlap').update({ selesai: addDays(TODAY, -1) }).eq('id', x.id));
+      }
+      const add = pick.filter(k => !cur.includes(k)).map(k => ({ korlap_id: k, area_id: a.id, mulai: TODAY }));
+      if (add.length) await q(sb.from('dlv_area_korlap').insert(add));
+      await loadAll(); closeModal(); toast('Korlap area ' + a.nama + ' diperbarui.'); setArea_();
+    });
+  });
+}
+function setTitik() {
+  const berlaku = t => t.area_id ? 'Area ' + esc(area(t.area_id).nama) : t.division_id ? 'Semua ' + (t.division_id === 'DLV' ? 'Delivery' : esc(t.division_id)) : 'Semua divisi';
+  $('#sOut').innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><div><h2>Titik absensi</h2><p class="sub" style="margin:0">Absen sah jika posisi dalam radius salah satu titik. Kurir memakai titik areanya dan titik umum; korlap & staf memakai titik umum.</p></div><button class="btn-primary" id="tkAdd">Tambah titik</button></div>
+  <div class="tbl-wrap" style="margin-top:14px"><table><thead><tr><th>Nama titik</th><th>Berlaku untuk</th><th>Koordinat</th><th class="num">Radius</th><th>Status</th><th></th></tr></thead><tbody>
+  ${D.points.map(t => `<tr><td><b>${esc(t.nama)}</b></td><td>${berlaku(t)}</td><td class="small"><a href="https://www.google.com/maps?q=${t.lat},${t.lng}" target="_blank" rel="noopener">${(+t.lat).toFixed(5)}, ${(+t.lng).toFixed(5)}</a></td><td class="num">${t.radius_m} m</td><td>${t.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>'}</td><td><button class="btn-soft btn-sm" data-tk="${t.id}">Ubah</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Belum ada titik.</td></tr>'}
+  </tbody></table></div></div>`;
+  const form = id => {
+    const t = id ? D.points.find(x => x.id === id) : { nama: '', area_id: null, division_id: 'DLV', lat: '', lng: '', radius_m: 100, aktif: true };
+    const scope = t.area_id ? t.area_id : t.division_id ? 'DLV' : 'ALL';
+    openModal(`${modalHead(id ? 'Ubah titik' : 'Tambah titik', 'Koordinat bisa diambil dari Google Maps (klik kanan pada lokasi) atau dengan berdiri di lokasi lalu pakai lokasi saat ini.')}
+    <div class="form-grid"><label class="f"><span>Nama titik</span><input id="tkNama" value="${esc(t.nama)}" placeholder="contoh: Hub PIK 1"></label>
+      <label class="f"><span>Berlaku untuk</span><select id="tkScope">${opt('DLV', 'Semua Delivery (kurir & staf)', scope)}${opt('ALL', 'Semua divisi', scope)}${D.areas.map(a => opt(a.id, 'Kurir area ' + a.nama, scope)).join('')}</select></label>
+      <label class="f"><span>Latitude</span><input id="tkLat" inputmode="decimal" value="${t.lat}"></label><label class="f"><span>Longitude</span><input id="tkLng" inputmode="decimal" value="${t.lng}"></label>
+      <label class="f"><span>Radius (meter)</span><input id="tkRad" type="number" min="20" max="1000" step="10" value="${t.radius_m}"></label>
+      <label class="f"><span>Status</span><select id="tkAkt">${opt('1', 'Aktif', t.aktif ? '1' : '0')}${opt('0', 'Nonaktif', t.aktif ? '1' : '0')}</select></label></div>
+    <div class="actions" style="justify-content:space-between"><button class="btn-sm" id="tkHere">Pakai lokasi saya saat ini</button><span><button data-close>Batal</button> <button class="btn-primary" id="tkSave">Simpan</button></span></div>`);
+    $('#tkHere').onclick = () => navigator.geolocation.getCurrentPosition(p => { $('#tkLat').value = p.coords.latitude.toFixed(6); $('#tkLng').value = p.coords.longitude.toFixed(6); toast('Lokasi terisi (±' + Math.round(p.coords.accuracy) + ' m).'); }, () => toast('Lokasi tidak terbaca.', true), { enableHighAccuracy: true, timeout: 15000 });
+    $('#tkSave').onclick = () => run($('#tkSave'), async () => {
+      const sc = $('#tkScope').value, lat = Number($('#tkLat').value.replace(',', '.')), lng = Number($('#tkLng').value.replace(',', '.'));
+      if (!$('#tkNama').value.trim()) throw new Error('Isi nama titik.');
+      if (!$('#tkLat').value || !$('#tkLng').value || !(lat >= -90 && lat <= 90) || !(lng >= -180 && lng <= 180)) throw new Error('Koordinat tidak valid. Contoh: -6.10920 dan 106.74130.');
+      const row = { nama: $('#tkNama').value.trim(), area_id: sc === 'DLV' || sc === 'ALL' ? null : sc, division_id: sc === 'ALL' ? null : 'DLV', lat, lng, radius_m: Number($('#tkRad').value), aktif: $('#tkAkt').value === '1' };
+      const { error } = id ? await sb.from('attendance_points').update(row).eq('id', id) : await sb.from('attendance_points').insert(row);
+      if (error) throw new Error(/duplicate/.test(error.message) ? 'Nama titik sudah dipakai.' : /radius/.test(error.message) ? 'Radius harus 20–1000 meter.' : error.message);
+      await loadAll(); closeModal(); toast('Titik disimpan.'); setTitik();
+    });
+  };
+  $('#tkAdd').onclick = () => form(null); $('#sOut').querySelectorAll('[data-tk]').forEach(b => b.onclick = () => form(b.dataset.tk));
+}
+const TS = { bulan: monthKey(TODAY) };
+async function setTarget() {
+  const m0 = TS.bulan + '-01', months = [monthKey(addDays(monthKey(TODAY) + '-01', -1)), monthKey(TODAY), monthKey(addDays(monthKey(TODAY) + '-01', 32))];
+  const over = await q(sb.from('dlv_target_box').select('*').eq('bulan', m0)), def = k => (D.targetDefault.find(x => x.kontrak === k) || {}).target || 0;
+  const ks = kurirList().sort((a, b) => a.nama.localeCompare(b.nama));
+  $('#sOut').innerHTML = `<div class="card"><h2>Target box bulanan</h2><p class="sub">Default berlaku untuk semua kurir sesuai kontrak. Isi target khusus hanya untuk yang berbeda.</p>
+  <div class="row"><label class="f"><span>Bulan</span><select id="tBulan">${months.map(m => opt(m, monthLabel(m), TS.bulan)).join('')}</select></label>
+  ${['Full Time', 'Part Time'].map(k => `<label class="f"><span>Default ${k}</span><input type="number" min="0" step="10" data-def="${k}" value="${def(k)}" style="width:130px"></label>`).join('')}</div>
+  <div class="tbl-wrap" style="max-height:460px;overflow:auto;margin-top:14px"><table><thead><tr><th>Kurir</th><th>Area</th><th>Kontrak</th><th class="num">Default</th><th>Target khusus ${monthLabel(TS.bulan)}</th></tr></thead><tbody>
+  ${ks.map(k => { const o = over.find(x => x.profile_id === k.id); return `<tr><td><b>${esc(k.nama)}</b></td><td>${esc(area(areaOf(k.id)).nama || '—')}</td><td>${esc(k.kontrak || '—')}</td><td class="num">${def(k.kontrak)}</td><td><input type="number" min="0" step="10" data-t="${k.id}" value="${o ? o.target : ''}" placeholder="pakai default" style="width:140px"></td></tr>`; }).join('') || '<tr><td colspan="5" class="empty">Belum ada kurir.</td></tr>'}
+  </tbody></table></div><div class="actions"><button class="btn-primary" id="tSave">Simpan target</button></div></div>`;
+  $('#tBulan').onchange = e => { TS.bulan = e.target.value; setTarget(); };
+  $('#tSave').onclick = () => run($('#tSave'), async () => {
+    await q(sb.from('dlv_target_default').upsert([...$('#sOut').querySelectorAll('[data-def]')].map(i => ({ kontrak: i.dataset.def, target: Math.max(0, Number(i.value) || 0) }))));
+    const ins = [], del = [];
+    $('#sOut').querySelectorAll('[data-t]').forEach(i => { const v = Number(i.value); if (i.value !== '' && v >= 0) ins.push({ profile_id: i.dataset.t, bulan: m0, target: v }); else if (over.some(o => o.profile_id === i.dataset.t)) del.push(i.dataset.t); });
+    if (ins.length) await q(sb.from('dlv_target_box').upsert(ins));
+    if (del.length) await q(sb.from('dlv_target_box').delete().eq('bulan', m0).in('profile_id', del));
+    await loadAll(); toast('Target ' + monthLabel(TS.bulan) + ' tersimpan.');
+  });
+}
+
+/* ---------- Router ---------- */
+const PAGES = { dashboard: pageDashboard, penilaian: pagePenilaian, laporan: pageLaporan, absensi: pageAbsensi, reimburse: pageReimburse, akun: pageAkun, pengaturan: pagePengaturan };
+function render() {
+  stopCam(); clearInterval(absenSaya.t);
+  const allowed = NAV.filter(n => n.id && n.ok());
+  let id = location.hash.slice(1); if (!allowed.some(n => n.id === id)) id = 'dashboard';
+  const has = i => { for (let j = i + 1; j < NAV.length && !NAV[j].grp; j++) if (NAV[j].ok()) return true; return false; };
+  $('#nav').innerHTML = NAV.map((n, i) => n.grp ? (has(i) ? `<div class="grp">${n.grp}</div>` : '') : n.ok() ? `<a href="#${n.id}" class="${n.id === id ? 'active' : ''}">${n.label}</a>` : '').join('');
+  const lbl = NAV.find(n => n.id === id).label; $('#pageTitle').textContent = lbl; document.title = lbl + ' · Management Delivery';
+  Promise.resolve(PAGES[id]($('#view'))).catch(e => $('#view').innerHTML = `<div class="card empty">Gagal memuat: ${esc(e.message)}</div>`);
+}
+window.addEventListener('hashchange', () => { document.body.classList.remove('nav-open'); render(); window.scrollTo(0, 0); });
+$('#menuBtn').onclick = () => document.body.classList.add('nav-open');
+$('#scrim').onclick = () => document.body.classList.remove('nav-open');
+$('#logoutLink').onclick = e => { e.preventDefault(); HGAuth.logout(); };
+
+(async () => {
+  const me = await HGAuth.guard('dlv-mgmt');
+  ME = me.profile;
+  const pusat = !!(await q(sb.rpc('admin_pusat'))), dlv = ME.division_id === 'DLV', pj = ME.position_id;
+  R = { pusat, admin: pusat || (dlv && pj === 'admin'), manajer: pusat || (dlv && pj === 'manajer'), hrd: dlv && pj === 'hrd', korlap: dlv && pj === 'korlap' };
+  R.staf = R.admin || R.manajer || R.hrd;
+  $('#meBox').innerHTML = `<b>${esc(ME.nama)}</b>${esc(ME.positions ? ME.positions.nama : pj)}`;
+  try { await loadAll(); } catch (e) { $('#view').innerHTML = `<div class="card empty">Gagal memuat data: ${esc(e.message)}</div>`; return; }
+  render();
+})();
+
+</script>
+</body>
+</html>
