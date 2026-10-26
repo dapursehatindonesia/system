@@ -18,12 +18,17 @@
     auth: { persistSession: true, autoRefreshToken: true, storageKey: 'hg-auth' }
   });
 
-  /** Login bisa pakai username (kurir/staf) atau email asli (admin).
-      Username diubah menjadi email internal "<username>@<LOGIN_DOMAIN>". */
-  const toEmail = input => {
+  /** Email internal Supabase Auth untuk sebuah username. */
+  const toEmail = username => String(username || '').trim().toLowerCase() + '@' + HG.LOGIN_DOMAIN;
+
+  /** Input login bisa username atau email asli. Mengembalikan email internal, atau null kalau tidak dikenal. */
+  async function loginEmail(input) {
     const v = String(input || '').trim().toLowerCase();
-    return v.includes('@') ? v : v + '@' + HG.LOGIN_DOMAIN;
-  };
+    if (!v.includes('@')) return toEmail(v);
+    const { data, error } = await sb.rpc('login_id', { p_input: v });
+    if (error) throw error;
+    return data ? toEmail(data) : null;
+  }
 
   /** Alamat tujuan setelah login hanya boleh path di situs ini (cegah redirect ke situs lain). */
   function safeNext(next) {
@@ -74,5 +79,5 @@
     if (event === 'SIGNED_OUT' && location.pathname !== '/' && location.pathname !== '/index.html') location.replace('/');
   });
 
-  window.HGAuth = { sb, toEmail, safeNext, profile, guard, logout };
+  window.HGAuth = { sb, toEmail, loginEmail, safeNext, profile, guard, logout };
 })();
