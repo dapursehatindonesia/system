@@ -89,7 +89,7 @@ input{background:var(--field);border:1px solid var(--line);border-radius:12px;pa
 <script src="/shared/config.js"></script>
 <script src="/shared/auth.js"></script>
 <script>
-const { sb, toEmail, safeNext, profile } = HGAuth;
+const { sb, loginEmail, safeNext, profile } = HGAuth;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const params = new URLSearchParams(location.search);
@@ -149,7 +149,10 @@ $('#loginForm').onsubmit = async e => {
   if (u.includes('@') ? !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u) : !/^[a-z0-9._-]{4,40}$/.test(u)) return msg('#loginMsg', u.includes('@') ? 'Format email tidak valid.' : 'Username 4–40 karakter: huruf kecil, angka, titik, garis bawah, atau strip.');
   if (!p) return msg('#loginMsg', 'Isi password.');
   const b = $('#loginBtn'); b.disabled = true; b.textContent = 'Memeriksa…'; msg('#loginMsg', '');
-  const { data, error } = await sb.auth.signInWithPassword({ email: toEmail(u), password: p });
+  let email = null, data = null, error = null;
+  try { email = await loginEmail(u); } catch (e) { error = e; }
+  if (!error && email) ({ data, error } = await sb.auth.signInWithPassword({ email, password: p }));
+  else if (!error) error = { message: 'Invalid login credentials' };   // email tidak terdaftar: pesan sama, tidak membocorkan info
   b.disabled = false; b.textContent = 'Masuk';
   if (error) {
     const m = error.status === 429 ? 'Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.'
