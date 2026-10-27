@@ -351,14 +351,16 @@ async function pagePerforma(v) {
   const [sla, comp, costs, tg, def, baru] = await Promise.all([
     q(sb.from('dlv_sla').select('*').eq('profile_id', ME.id).gte('tanggal', s).lt('tanggal', e).order('tanggal', { ascending: false })),
     q(sb.from('dlv_complaints').select('*').eq('profile_id', ME.id).gte('tanggal', s).lt('tanggal', e).order('tanggal', { ascending: false })),
-    q(sb.from('dlv_costs').select('*').eq('profile_id', ME.id).eq('bulan', s).order('batch', { ascending: false })),
+    q(sb.from('dlv_costs').select('*').eq('profile_id', ME.id).eq('bulan', s)),
     q(sb.from('dlv_target_box').select('target').eq('profile_id', ME.id).eq('bulan', s)),
     q(sb.from('dlv_target_default').select('*')),
     q(sb.from('dlv_complaints').select('*').eq('profile_id', ME.id).gte('tanggal', addDays(TODAY, -7)).order('tanggal', { ascending: false }))
   ]);
-  const box = sla.reduce((a, x) => a + x.qty_box, 0), late = sla.reduce((a, x) => a + x.box_terlambat, 0), hg = sla.filter(x => x.mode === 'HG').reduce((a, x) => a + x.qty_box, 0), bk = box - hg;
+  const box = sla.reduce((a, x) => a + x.qty_box, 0), late = sla.reduce((a, x) => a + x.box_terlambat, 0), hg = sla.filter(x => x.mode === 'HG').reduce((a, x) => a + x.qty_box, 0), bk = sla.filter(x => x.mode === 'BK').reduce((a, x) => a + x.qty_box, 0), lain = box - hg - bk;
   const target = tg[0] ? tg[0].target : ((def.find(x => x.kontrak === ME.kontrak) || {}).target || 0);
-  const pct = target ? box / target * 100 : 0, income = costs.reduce((a, x) => a + Number(x.total_cost || 0), 0);
+  const isPay = c => /payroll/i.test(c.batch || ''), batchLabel = c => /^\d+$/.test(c.batch || '') ? 'Batch ' + c.batch : c.batch;
+  costs.sort((a, b) => String(b.batch).localeCompare(String(a.batch), 'id', { numeric: true }));
+  const pct = target ? box / target * 100 : 0, income = costs.reduce((a, x) => a + Number(x.total_cost || 0), 0), payroll = costs.filter(isPay).reduce((a, x) => a + Number(x.total_weekly || 0), 0);
   const r = 46, C = 2 * Math.PI * r, off = C * (1 - Math.min(pct, 100) / 100);
   let sisa = 0; if (bulan === monthKey(TODAY)) for (let d = addDays(TODAY, 1); monthKey(d) === bulan; d = addDays(d, 1)) sisa += sesiOf(d).length;
   const months = [0, 1, 2].map(i => monthKey(addDays(monthKey(TODAY) + '-01', -i * 28)));
@@ -371,25 +373,25 @@ async function pagePerforma(v) {
     <div><h2>Target ${monthLabel(bulan)}</h2><div><b style="font-size:20px">${num(box)}</b> <span class="muted">dari ${num(target)} box</span></div>
     <p class="small muted" style="margin:4px 0 0">${!target ? 'Target belum diatur.' : box >= target ? 'Target tercapai. Mantap!' : sisa ? `Kurang ${num(target - box)} box, sisa ${sisa} sesi (±${Math.ceil((target - box) / sisa)} box per sesi).` : `Kurang ${num(target - box)} box.`}</p></div></div></div>
   <div class="stats" style="margin-bottom:14px">
-    <div class="stat lead"><span>Pendapatan</span><b>${rupiahShort(income)}</b><small>${costs.length} minggu direkap</small></div>
+    <div class="stat lead"><span>Pendapatan</span><b>${rupiahShort(income)}</b><small>${costs.filter(c => !isPay(c)).length} minggu direkap${payroll ? ' · payroll ' + rupiahShort(payroll) : ''}</small></div>
     <div class="stat"><span>Total box</span><b>${num(box)}</b><small>${new Set(sla.map(x => x.tanggal + x.sesi)).size} sesi</small></div>
     <div class="stat"><span>% terlambat</span><b>${fmtPct(box ? late / box * 100 : null)}</b><small>${num(late)} box terlambat</small></div>
     <div class="stat"><span>Complaint</span><b>${comp.length}</b><small>${fmtPct(box ? comp.length / box * 100 : null, 2)} dari box</small></div></div>
-  <div class="card"><h2>Box per bisnis</h2><div class="split-bar">${box ? `<i style="width:${hg / box * 100}%;background:var(--hg-500)"></i><i style="width:${bk / box * 100}%;background:var(--sun)"></i>` : ''}</div>
-    <div class="row small" style="justify-content:space-between"><span><b>HG</b> ${num(hg)}</span><span><b>BK</b> ${num(bk)}</span></div></div>
+  <div class="card"><h2>Box per bisnis</h2><div class="split-bar">${box ? `<i style="width:${hg / box * 100}%;background:var(--hg-500)"></i><i style="width:${bk / box * 100}%;background:var(--sun)"></i><i style="width:${lain / box * 100}%;background:var(--info)"></i>` : ''}</div>
+    <div class="row small" style="justify-content:space-between"><span><b>HG</b> ${num(hg)}</span><span><b>BK</b> ${num(bk)}</span>${lain ? `<span><b>Lainnya</b> ${num(lain)}</span>` : ''}</div></div>
   <div class="tabs" role="tablist">${[['pendapatan', 'Pendapatan'], ['complaint', 'Complaint'], ['sesi', 'Riwayat sesi']].map(([k, l]) => `<button role="tab" aria-selected="${PF.tab === k}" data-t="${k}">${l}</button>`).join('')}</div>
   <div class="card" id="pfOut"></div><p class="small muted" style="text-align:center">Data diperbarui setiap hari pukul 01.00.</p>`;
   $('#pfB').onchange = e => { PF.bulan = e.target.value; pagePerforma(v); };
   v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { PF.tab = b.dataset.t; pagePerforma(v); });
   const sc = $('#seeComp'); if (sc) sc.onclick = () => { PF.tab = 'complaint'; pagePerforma(v); };
   const out = $('#pfOut');
-  if (PF.tab === 'pendapatan') out.innerHTML = `<h2>Pendapatan mingguan</h2><div class="list">${costs.map(c => `<div class="li click" data-c="${c.id}" tabindex="0"><div><b>Batch ${c.batch}</b><small>${c.total_box} box</small></div><div class="r"><b>${rupiah(c.total_cost)}</b></div></div>`).join('') || '<div class="empty">Belum ada rekap pendapatan bulan ini.</div>'}</div>`;
+  if (PF.tab === 'pendapatan') out.innerHTML = `<h2>Pendapatan mingguan</h2><div class="list">${costs.map(c => `<div class="li click" data-c="${c.id}" tabindex="0"><div><b>${esc(batchLabel(c))}</b><small>${isPay(c) ? 'Payroll bulanan' : c.total_box + ' box'}</small></div><div class="r"><b>${rupiah(isPay(c) ? c.total_weekly : c.total_cost)}</b></div></div>`).join('') || '<div class="empty">Belum ada rekap pendapatan bulan ini.</div>'}</div>`;
   if (PF.tab === 'complaint') out.innerHTML = `<h2>Complaint</h2><div class="list">${comp.map(c => `<div class="li" style="display:block"><div class="row" style="justify-content:space-between"><b>${esc(c.tipe || 'Complaint')}</b><span class="small muted">${fmtDate(c.tanggal)}</span></div><small style="display:block;margin-top:2px">${esc(c.nama_customer || '')}${c.sesi ? ' · ' + esc(c.sesi) : ''}</small><div class="small" style="margin-top:4px">${esc(c.keterangan || '')}</div></div>`).join('') || '<div class="empty">Tidak ada complaint. Pertahankan!</div>'}</div>`;
   if (PF.tab === 'sesi') {
     const g = {}; sla.forEach(x => (g[x.tanggal + '|' + x.sesi] = g[x.tanggal + '|' + x.sesi] || []).push(x));
     out.innerHTML = `<h2>Riwayat sesi</h2><div class="list">${Object.entries(g).sort((a, b) => b[0].localeCompare(a[0])).map(([k, rows]) => { const [d, s] = k.split('|'), b = rows.reduce((a, x) => a + x.qty_box, 0), l = rows.reduce((a, x) => a + x.box_terlambat, 0), end = rows.map(x => x.max_time || '').sort().pop().slice(0, 5); return `<div class="li"><div><b>${fmtShort(d)} · ${esc(s)}</b><small>${rows.map(x => x.mode + ' ' + x.qty_box).join(' · ')}${end ? ' · selesai ' + end : ''}</small></div><div class="r"><b>${b} box</b>${l ? `<span class="chip c-warn">${l} telat</span>` : '<span class="chip c-ok">Tepat waktu</span>'}</div></div>`; }).join('') || '<div class="empty">Belum ada data sesi bulan ini.</div>'}</div>`;
   }
-  out.querySelectorAll('[data-c]').forEach(x => x.onclick = () => { const c = costs.find(y => String(y.id) === x.dataset.c); openSheet('Batch ' + c.batch, `<dl class="kv"><dt>Total box</dt><dd>${c.total_box} (HG ${c.box_hg} · BK ${c.box_bk})</dd><dt>Gaji mingguan</dt><dd>${rupiah(c.total_weekly)}</dd><dt>Estafet</dt><dd>${rupiah(c.estafet)}</dd><dt>Jarak</dt><dd>${rupiah(c.jarak)}</dd><dt>Parkir</dt><dd>${rupiah(c.parkir)}</dd><dt>Gedung</dt><dd>${rupiah(c.gedung)}</dd><dt>Lain-lain</dt><dd>${rupiah(c.dll)}</dd><dt>Total</dt><dd style="font-size:17px">${rupiah(c.total_cost)}</dd></dl>`); });
+  out.querySelectorAll('[data-c]').forEach(x => x.onclick = () => { const c = costs.find(y => String(y.id) === x.dataset.c); openSheet(esc(batchLabel(c)), `<dl class="kv"><dt>Total box</dt><dd>${c.total_box} (HG ${c.box_hg} · BK ${c.box_bk})</dd><dt>${isPay(c) ? 'Payroll' : 'Gaji mingguan'}</dt><dd>${rupiah(c.total_weekly)}</dd><dt>Estafet</dt><dd>${rupiah(c.estafet)}</dd><dt>Jarak</dt><dd>${rupiah(c.jarak)}</dd><dt>Parkir</dt><dd>${rupiah(c.parkir)}</dd><dt>Gedung</dt><dd>${rupiah(c.gedung)}</dd><dt>Lain-lain</dt><dd>${rupiah(c.dll)}</dd><dt>Total</dt><dd style="font-size:17px">${rupiah(c.total_cost)}</dd></dl>`); });
 }
 
 /* ---------- Akun (ganti password, keluar) ---------- */
