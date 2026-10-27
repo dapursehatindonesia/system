@@ -364,7 +364,7 @@ function enrich(r, nama) {
   const pid = r.profile_id, a = pid ? area(areaOf(pid)) : {}, b = a.id ? branch(a.branch_id) : {};
   const nm = (pid && person(pid).nama) || nama || '';
   return { ...r, kKey: pid || (nm ? 'n:' + normName(nm) : 'n:-'), kNama: nm || 'Tanpa kurir', terdaftar: !!pid,
-    areaNama: a.nama || r.area || (nm ? 'Tidak terdaftar' : 'Tanpa kurir'), branchNama: b.nama || r.branch_cost || 'Tidak terdaftar' };
+    areaNama: a.nama ? (D.areas.filter(x => normName(x.nama) === normName(a.nama)).length > 1 ? a.nama + ' · ' + (b.nama || '') : a.nama) : (r.area || (nm ? 'Tidak terdaftar' : 'Tanpa kurir')), branchNama: b.nama || r.branch_cost || 'Tidak terdaftar' };
 }
 async function loadDash() {
   const months = [...DSH.bulan].sort(); const key = months.join(',');
@@ -611,9 +611,9 @@ function kurirForm(id, after) {
 let ATab = 'saya';
 function pageAbsensi(v) {
   stopCam();
-  v.innerHTML = `<div class="tabs" role="tablist">${[['saya', 'Absen saya'], ['rekap', 'Rekap absensi kurir']].map(([k, l]) => `<button role="tab" aria-selected="${ATab === k}" data-t="${k}">${l}</button>`).join('')}</div><div id="aOut"></div>`;
+  v.innerHTML = `<div class="tabs" role="tablist">${[['saya', 'Absen saya'], ['rekap', 'Rekap absensi kurir'], ['laporan', 'Laporan & unduh Excel']].map(([k, l]) => `<button role="tab" aria-selected="${ATab === k}" data-t="${k}">${l}</button>`).join('')}</div><div id="aOut"></div>`;
   v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { ATab = b.dataset.t; pageAbsensi(v); });
-  ATab === 'saya' ? absenSaya() : absenRekap();
+  (ATab === 'saya' ? absenSaya() : ATab === 'rekap' ? absenRekap() : absenLaporan());
 }
 let CAM = null;
 const AB = { pos: null, posErr: '', camErr: '', camReady: false, mine: [] };
@@ -710,6 +710,124 @@ async function absenRekap() {
     });
   };
   $('#arDate').onchange = draw; $('#arArea').onchange = draw; draw().catch(e => $('#arOut').innerHTML = `<div class="empty">${esc(e.message)}</div>`);
+}
+
+const XLSX_LITE = (() => {
+  const enc = new TextEncoder();
+  const T = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; T[n] = c >>> 0; }
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zip(files) {
+    const parts = [], central = []; let off = 0;
+    files.forEach(f => {
+      const name = enc.encode(f.name), data = enc.encode(f.data), crc = crc32(data), sz = data.length;
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(12, 0x21, true);
+      h.setUint32(14, crc, true); h.setUint32(18, sz, true); h.setUint32(22, sz, true); h.setUint16(26, name.length, true);
+      parts.push(new Uint8Array(h.buffer), name, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(14, 0x21, true);
+      c.setUint32(16, crc, true); c.setUint32(20, sz, true); c.setUint32(24, sz, true); c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+      central.push(new Uint8Array(c.buffer), name);
+      off += 30 + name.length + sz;
+    });
+    const cd = central.reduce((a, b) => a + b.length, 0), e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cd, true); e.setUint32(16, off, true);
+    return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+  const x = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  const col = i => { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const serial = iso => { const [y, m, d] = iso.split('-').map(Number); return (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000; };
+  const STYLE = { num: 0, pct: 3, rp: 4, date: 2 };
+  function sheet(sh) {
+    const cs = sh.columns, n = sh.rows.length;
+    const head = `<row r="1">${cs.map((c, i) => `<c r="${col(i)}1" t="inlineStr" s="1"><is><t>${x(c.label)}</t></is></c>`).join('')}</row>`;
+    const body = sh.rows.map((r, ri) => `<row r="${ri + 2}">${r.map((v, ci) => {
+      if (v == null || v === '') return '';
+      const ref = col(ci) + (ri + 2), t = cs[ci].type || 'text';
+      if (t === 'date') return `<c r="${ref}" s="2"><v>${serial(v)}</v></c>`;
+      if (t in STYLE) return `<c r="${ref}" s="${STYLE[t]}"><v>${Number(v)}</v></c>`;
+      return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${x(v)}</t></is></c>`;
+    }).join('')}</row>`).join('');
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0">${sh.freeze === false ? '' : '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>'}</sheetView></sheetViews><cols>${cs.map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.width || 14}" customWidth="1"/>`).join('')}</cols><sheetData>${head}${body}</sheetData>${n && sh.filter !== false ? `<autoFilter ref="A1:${col(cs.length - 1)}${n + 1}"/>` : ''}</worksheet>`;
+  }
+  function download(filename, sheets) {
+    const ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', rel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    const names = sheets.map(s => s.name.replace(/[\\\/\?\*\[\]:]/g, ' ').slice(0, 31));
+    const defs = sheets.map((s, i) => s.rows.length && s.filter !== false ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${x(names[i])}'!$A$1:$${col(s.columns.length - 1)}$${s.rows.length + 1}</definedName>` : '').join('');
+    const files = [
+      { name: '[Content_Types].xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>` },
+      { name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+      { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${ns}" xmlns:r="${rel}"><sheets>${names.map((n, i) => `<sheet name="${x(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets>${defs ? `<definedNames>${defs}</definedNames>` : ''}</workbook>` },
+      { name: 'xl/_rels/workbook.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="${rel}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="${rel}/styles" Target="styles.xml"/></Relationships>` },
+      { name: 'xl/styles.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="${ns}"><numFmts count="2"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="&quot;Rp&quot; #,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF074B34"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="10" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>` },
+      ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheet(s) }))
+    ];
+    const url = URL.createObjectURL(zip(files)), a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  return { download };
+})();
+
+/* Laporan absensi + unduh Excel. Kurir: per sesi (Lunch/Dinner/Weekend). Staf: absen Masuk per hari kerja. */
+const LA = { dari: monthKey(TODAY) + '-01', sampai: TODAY, area: '', jab: '', view: 'rekap' };
+const sesiHari = (u, d) => D.sessions.filter(s => s.untuk === u && s.hari.includes(isodow(d))).map(s => s.sesi).filter(s => s !== 'Pulang');
+async function hitungAbsen() {
+  const ids = myAreaIds(), qq = LA.area;
+  const orang = D.people.filter(p => p.aktif && (!LA.jab || p.position_id === LA.jab) && (p.position_id === 'kurir' ? (ids.includes(areaOf(p.id)) && (!qq || areaOf(p.id) === qq)) : (!qq && (R.staf || p.id === ME.id))));
+  const pids = orang.map(p => p.id); let abs = [];
+  for (let i = 0; i < pids.length; i += 200) abs = abs.concat(await fetchAll(() => sb.from('attendance').select('profile_id,tanggal,sesi,status,jam,point_id,jarak_m,catatan,sumber').in('profile_id', pids.slice(i, i + 200)).gte('tanggal', LA.dari).lte('tanggal', LA.sampai).order('tanggal')));
+  const idx = {}; abs.forEach(a => idx[a.profile_id + '|' + a.tanggal + '|' + a.sesi] = a);
+  const detail = [];
+  orang.forEach(p => {
+    const mulai = (D.penugasan.filter(x => x.profile_id === p.id).map(x => x.mulai).sort()[0]) || LA.dari;
+    for (let d = LA.dari; d <= LA.sampai && d <= TODAY; d = addDays(d, 1)) {
+      if (p.position_id === 'kurir' && d < mulai) continue;          // sebelum ditugaskan tidak dihitung
+      sesiHari(p.position_id === 'kurir' ? 'kurir' : 'staf', d).forEach(s => {
+        const a = idx[p.id + '|' + d + '|' + s];
+        if (!a && d === TODAY) return;
+        const pl = s === 'Masuk' ? idx[p.id + '|' + d + '|Pulang'] : null;
+        detail.push({ p, tanggal: d, sesi: s, status: a ? a.status : 'Tidak absen', jam: a && a.jam ? a.jam.slice(0, 5) : '', pulang: pl && pl.jam ? pl.jam.slice(0, 5) : '', titik: a && a.point_id ? (D.points.find(t => t.id === a.point_id) || {}).nama || '' : '', jarak: a && a.jarak_m != null ? a.jarak_m : null, catatan: a ? a.catatan || '' : '' });
+      });
+    }
+  });
+  const rekap = orang.map(p => { const r = detail.filter(x => x.p === p), c = s => r.filter(x => x.status === s).length; return { p, nama: p.nama, jab: (p.position_id || ''), areaNama: area(areaOf(p.id)).nama || '', branchNama: branch(area(areaOf(p.id)).branch_id).nama || '', wajib: r.length, hadir: c('Hadir'), izin: c('Izin'), sakit: c('Sakit'), tidak: c('Tidak absen'), pct: r.length ? c('Hadir') / r.length : null }; });
+  return { orang, detail, rekap };
+}
+async function absenLaporan() {
+  const out = $('#aOut');
+  out.innerHTML = `<div class="card"><div class="row">
+    <label class="f"><span>Dari</span><input type="date" id="laDari" value="${LA.dari}" max="${TODAY}"></label>
+    <label class="f"><span>Sampai</span><input type="date" id="laSampai" value="${LA.sampai}" max="${TODAY}"></label>
+    <label class="f"><span>Area</span>${areaSelect('laArea', LA.area)}</label>
+    <label class="f"><span>Jabatan</span><select id="laJab"><option value="">Semua</option>${uniq(D.people.map(p => p.position_id)).map(j => opt(j, j[0].toUpperCase() + j.slice(1), LA.jab)).join('')}</select></label>
+    <button class="btn-soft" id="laShow">Tampilkan</button><button class="btn-primary" id="laXls">Unduh Excel</button></div>
+    <p class="small muted" style="margin:10px 0 0">Kurir wajib absen per sesi (Lunch, Dinner, Weekend) sejak ditugaskan ke area. Staf wajib absen masuk setiap hari kerja. Hari ini hanya menghitung yang sudah absen. Maksimal 92 hari.</p></div><div id="laRes"></div>`;
+  const baca = () => { LA.dari = $('#laDari').value; LA.sampai = $('#laSampai').value; LA.area = $('#laArea').value; LA.jab = $('#laJab').value; if (!LA.dari || !LA.sampai || LA.dari > LA.sampai) throw new Error('Tanggal "dari" harus sebelum "sampai".'); if ((parse(LA.sampai) - parse(LA.dari)) / 864e5 > 92) throw new Error('Rentang maksimal 92 hari.'); };
+  const tampil = () => run($('#laShow'), async () => {
+    baca(); $('#laRes').innerHTML = '<div class="card empty">Menghitung…</div>';
+    const H = await hitungAbsen(); LA.H = H;
+    const tot = s => H.detail.filter(x => x.status === s).length, w = H.detail.length;
+    const rcols = [{ key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama)}</b>` }, { key: 'jab', label: 'Jabatan' }, { key: 'areaNama', label: 'Area', render: r => esc(r.areaNama) || '—' },
+      { key: 'wajib', label: 'Wajib', num: true }, { key: 'hadir', label: 'Hadir', num: true }, { key: 'izin', label: 'Izin', num: true }, { key: 'sakit', label: 'Sakit', num: true },
+      { key: 'tidak', label: 'Tidak absen', num: true, render: r => r.tidak ? `<span class="chip c-bad">${r.tidak}</span>` : '0' },
+      { key: 'pct', label: '% hadir', num: true, render: r => r.pct == null ? '—' : `<span class="chip ${r.pct >= .95 ? 'c-ok' : r.pct >= .85 ? 'c-warn' : 'c-bad'}">${(r.pct * 100).toFixed(1)}%</span>` }];
+    $('#laRes').innerHTML = `<div class="kpis"><div class="kpi lead"><span>Kehadiran</span><b>${w ? (tot('Hadir') / w * 100).toFixed(1) + '%' : '—'}</b><small>${num(tot('Hadir'))} dari ${num(w)} wajib absen</small></div><div class="kpi"><span>Orang</span><b>${H.orang.length}</b></div><div class="kpi"><span>Izin</span><b>${tot('Izin')}</b></div><div class="kpi"><span>Sakit</span><b>${tot('Sakit')}</b></div><div class="kpi"><span>Tidak absen</span><b>${tot('Tidak absen')}</b></div></div>
+    <div class="card"><h2>Rekap per orang</h2>${dataTable('labs', rcols, H.rekap, { sortKey: 'pct', freezeFirst: true, empty: 'Tidak ada data.' })}</div>`;
+    bindDataTable($('#laRes'), 'labs', tampil);
+  });
+  $('#laShow').onclick = tampil;
+  $('#laXls').onclick = () => run($('#laXls'), async () => {
+    baca(); const H = await hitungAbsen(); if (!H.detail.length) throw new Error('Tidak ada data untuk diunduh.');
+    XLSX_LITE.download(`Laporan Absensi Delivery ${LA.dari} sd ${LA.sampai}.xlsx`, [
+      { name: 'Rekap per orang', columns: [{ label: 'Nama', width: 26 }, { label: 'Jabatan', width: 12 }, { label: 'Branch', width: 14 }, { label: 'Area', width: 14 }, { label: 'Wajib absen', type: 'num', width: 12 }, { label: 'Hadir', type: 'num', width: 9 }, { label: 'Izin', type: 'num', width: 9 }, { label: 'Sakit', type: 'num', width: 9 }, { label: 'Tidak absen', type: 'num', width: 12 }, { label: '% Kehadiran', type: 'pct', width: 12 }],
+        rows: H.rekap.sort((a, b) => a.areaNama.localeCompare(b.areaNama) || a.nama.localeCompare(b.nama)).map(r => [r.nama, r.jab, r.branchNama, r.areaNama, r.wajib, r.hadir, r.izin, r.sakit, r.tidak, r.pct]) },
+      { name: 'Detail harian', columns: [{ label: 'Tanggal', type: 'date', width: 12 }, { label: 'Hari', width: 7 }, { label: 'Nama', width: 26 }, { label: 'Jabatan', width: 12 }, { label: 'Area', width: 14 }, { label: 'Sesi', width: 10 }, { label: 'Status', width: 12 }, { label: 'Jam absen', width: 10 }, { label: 'Jam pulang', width: 10 }, { label: 'Titik', width: 20 }, { label: 'Jarak (m)', type: 'num', width: 10 }, { label: 'Catatan', width: 30 }],
+        rows: H.detail.sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.p.nama.localeCompare(b.p.nama)).map(x => [x.tanggal, HARI[parse(x.tanggal).getDay()], x.p.nama, x.p.position_id, area(areaOf(x.p.id)).nama || '', x.sesi, x.status, x.jam, x.pulang, x.titik, x.jarak, x.catatan]) },
+      { name: 'Info', filter: false, freeze: false, columns: [{ label: 'Keterangan', width: 20 }, { label: 'Isi', width: 50 }], rows: [['Laporan', 'Absensi Delivery'], ['Periode', fmtDate(LA.dari) + ' – ' + fmtDate(LA.sampai)], ['Area', LA.area ? area(LA.area).nama : 'Semua (sesuai hak akses)'], ['Dibuat oleh', ME.nama], ['Dibuat pada', fmtDate(TODAY) + ' ' + nowHM()]] }
+    ]);
+    toast('Excel diunduh: ' + H.rekap.length + ' orang, ' + H.detail.length + ' baris.');
+  });
 }
 
 /* ---------- Penilaian ---------- */
@@ -830,17 +948,37 @@ function pagePengaturan(v) {
 }
 function setArea_() {
   const korlaps = D.people.filter(p => p.position_id === 'korlap' && p.aktif);
-  $('#sOut').innerHTML = `<div class="card"><h2>Branch</h2><div class="row" style="margin:10px 0">${D.branches.map(b => `<span class="chip c-mute">${esc(b.nama)} · ${D.areas.filter(a => a.branch_id === b.id).length} area</span>`).join(' ') || '<span class="muted small">Belum ada branch.</span>'}</div>
+  $('#sOut').innerHTML = `<div class="card"><h2>Branch</h2>
+  <div class="tbl-wrap" style="margin:10px 0"><table><thead><tr><th>Branch</th><th class="num">Area</th><th></th></tr></thead><tbody>
+  ${D.branches.map(b => `<tr><td><b>${esc(b.nama)}</b></td><td class="num">${D.areas.filter(a => a.branch_id === b.id).length}</td><td><span class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn-soft btn-sm" data-be="${b.id}">Ubah</button><button class="btn-sm btn-danger" data-bd="${b.id}">Hapus</button></span></td></tr>`).join('') || '<tr><td colspan="3" class="empty">Belum ada branch.</td></tr>'}
+  </tbody></table></div>
     <div class="row"><label class="f grow"><span>Nama branch baru</span><input id="brNama" placeholder="contoh: CK Kapuk"></label><button class="btn-primary" id="brAdd">Tambah branch</button></div></div>
-  <div class="card"><h2>Area & korlap</h2><p class="sub">Satu area bisa dipegang lebih dari satu korlap. Penggantian korlap disimpan sebagai riwayat.</p>
+  <div class="card"><h2>Area & korlap</h2><p class="sub">Nama area boleh sama di branch berbeda. Satu area bisa dipegang lebih dari satu korlap; penggantian korlap disimpan sebagai riwayat.</p>
   <div class="tbl-wrap"><table><thead><tr><th>Branch</th><th>Area</th><th class="num">Kurir aktif</th><th>Korlap</th><th>Status</th><th></th></tr></thead><tbody>
-  ${D.areas.map(a => `<tr><td>${esc(branch(a.branch_id).nama)}</td><td><b>${esc(a.nama)}</b></td><td class="num">${kurirList().filter(k => areaOf(k.id) === a.id).length}</td><td>${korlapAktif(a.id).map(x => esc(person(x.korlap_id).nama || '—')).join(', ') || '<span class="chip c-warn">Belum ada</span>'}</td><td>${a.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>'}</td><td><span class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn-soft btn-sm" data-ak="${a.id}">Atur korlap</button><button class="btn-sm" data-tg="${a.id}">${a.aktif ? 'Nonaktifkan' : 'Aktifkan'}</button></span></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Belum ada area.</td></tr>'}
+  ${D.areas.slice().sort((a, b) => (branch(a.branch_id).nama || '').localeCompare(branch(b.branch_id).nama || '') || a.nama.localeCompare(b.nama)).map(a => `<tr><td>${esc(branch(a.branch_id).nama)}</td><td><b>${esc(a.nama)}</b></td><td class="num">${kurirList().filter(k => areaOf(k.id) === a.id).length}</td><td>${korlapAktif(a.id).map(x => esc(person(x.korlap_id).nama || '—')).join(', ') || '<span class="chip c-warn">Belum ada</span>'}</td><td>${a.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>'}</td>
+  <td><span class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn-soft btn-sm" data-ak="${a.id}">Atur korlap</button><button class="btn-sm" data-ae="${a.id}">Ubah</button><button class="btn-sm" data-tg="${a.id}">${a.aktif ? 'Nonaktifkan' : 'Aktifkan'}</button><button class="btn-sm btn-danger" data-ad="${a.id}">Hapus</button></span></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Belum ada area.</td></tr>'}
   </tbody></table></div>
   <h3 style="font-size:15px;margin:20px 0 8px">Tambah area</h3>
   <div class="row"><label class="f grow"><span>Nama area</span><input id="naNama" placeholder="contoh: PIK"></label><label class="f"><span>Branch</span><select id="naBr">${D.branches.map(b => opt(b.id, b.nama)).join('') || '<option value="">Tambah branch dulu</option>'}</select></label><button class="btn-primary" id="naAdd">Tambah area</button></div>
   ${korlaps.length ? '' : '<p class="small muted" style="margin:12px 0 0">Belum ada akun korlap. Buat akun berjabatan Korlap (divisi Delivery) di Backoffice.</p>'}</div>`;
-  $('#brAdd').onclick = () => run($('#brAdd'), async () => { const n = $('#brNama').value.trim(); if (!n) throw new Error('Isi nama branch.'); const { error } = await sb.from('dlv_branches').insert({ nama: n }); if (error) throw new Error(/duplicate/.test(error.message) ? 'Branch sudah ada.' : error.message); await loadAll(); toast('Branch ditambahkan.'); setArea_(); });
-  $('#naAdd').onclick = () => run($('#naAdd'), async () => { const n = $('#naNama').value.trim(), b = $('#naBr').value; if (!n) throw new Error('Isi nama area.'); if (!b) throw new Error('Tambah branch dulu.'); const { error } = await sb.from('dlv_areas').insert({ nama: n, branch_id: b }); if (error) throw new Error(/duplicate/.test(error.message) ? 'Area sudah ada.' : error.message); await loadAll(); toast('Area ditambahkan.'); setArea_(); });
+  const dupMsg = m => /duplicate|unik|unique/i.test(m);
+  const fkMsg = m => /foreign key|violates/i.test(m);
+  $('#brAdd').onclick = () => run($('#brAdd'), async () => { const n = $('#brNama').value.trim(); if (!n) throw new Error('Isi nama branch.'); const { error } = await sb.from('dlv_branches').insert({ nama: n }); if (error) throw new Error(dupMsg(error.message) ? 'Branch sudah ada.' : error.message); await loadAll(); toast('Branch ditambahkan.'); setArea_(); });
+  $('#naAdd').onclick = () => run($('#naAdd'), async () => { const n = $('#naNama').value.trim(), b = $('#naBr').value; if (!n) throw new Error('Isi nama area.'); if (!b) throw new Error('Tambah branch dulu.'); const { error } = await sb.from('dlv_areas').insert({ nama: n, branch_id: b }); if (error) throw new Error(dupMsg(error.message) ? `Area "${n}" sudah ada di branch ${branch(b).nama}.` : error.message); await loadAll(); toast('Area ditambahkan.'); setArea_(); });
+  $('#sOut').querySelectorAll('[data-be]').forEach(btn => btn.onclick = () => { const b = branch(btn.dataset.be);
+    openModal(`${modalHead('Ubah branch')}<label class="f"><span>Nama branch</span><input id="ebNama" value="${esc(b.nama)}"></label><div class="actions"><button data-close>Batal</button><button class="btn-primary" id="ebSave">Simpan</button></div>`);
+    $('#ebSave').onclick = () => run($('#ebSave'), async () => { const n = $('#ebNama').value.trim(); if (!n) throw new Error('Isi nama branch.'); const { error } = await sb.from('dlv_branches').update({ nama: n }).eq('id', b.id); if (error) throw new Error(dupMsg(error.message) ? 'Nama branch sudah dipakai.' : error.message); await loadAll(); closeModal(); toast('Branch diperbarui.'); setArea_(); }); });
+  $('#sOut').querySelectorAll('[data-bd]').forEach(btn => btn.onclick = () => { const b = branch(btn.dataset.bd);
+    if (D.areas.some(a => a.branch_id === b.id)) return toast(`Branch ${b.nama} masih punya area. Pindahkan atau hapus areanya dulu.`, true);
+    if (!confirm('Hapus branch ' + b.nama + '?')) return;
+    run(btn, async () => { const { error } = await sb.from('dlv_branches').delete().eq('id', b.id); if (error) throw new Error(fkMsg(error.message) ? 'Branch masih dipakai data lain.' : error.message); await loadAll(); toast('Branch dihapus.'); setArea_(); }); });
+  $('#sOut').querySelectorAll('[data-ae]').forEach(btn => btn.onclick = () => { const a = area(btn.dataset.ae);
+    openModal(`${modalHead('Ubah area', 'Mengubah nama atau branch tidak mengubah riwayat penugasan.')}<div class="form-grid"><label class="f"><span>Nama area</span><input id="eaNama" value="${esc(a.nama)}"></label><label class="f"><span>Branch</span><select id="eaBr">${D.branches.map(b => opt(b.id, b.nama, a.branch_id)).join('')}</select></label></div><div class="actions"><button data-close>Batal</button><button class="btn-primary" id="eaSave">Simpan</button></div>`);
+    $('#eaSave').onclick = () => run($('#eaSave'), async () => { const n = $('#eaNama').value.trim(), b = $('#eaBr').value; if (!n) throw new Error('Isi nama area.'); const { error } = await sb.from('dlv_areas').update({ nama: n, branch_id: b }).eq('id', a.id); if (error) throw new Error(dupMsg(error.message) ? `Area "${n}" sudah ada di branch ${branch(b).nama}.` : error.message); await loadAll(); closeModal(); toast('Area diperbarui.'); setArea_(); }); });
+  $('#sOut').querySelectorAll('[data-ad]').forEach(btn => btn.onclick = () => { const a = area(btn.dataset.ad);
+    if (D.penugasan.some(x => x.area_id === a.id)) return toast(`Area ${a.nama} punya riwayat penugasan kurir, jadi tidak bisa dihapus (supaya laporan lama tetap benar). Gunakan Nonaktifkan.`, true);
+    if (!confirm(`Hapus area ${a.nama} (${branch(a.branch_id).nama})?`)) return;
+    run(btn, async () => { const { error } = await sb.from('dlv_areas').delete().eq('id', a.id); if (error) throw new Error(fkMsg(error.message) ? 'Area masih dipakai (titik absensi, penilaian, atau riwayat). Gunakan Nonaktifkan.' : error.message); await loadAll(); toast('Area dihapus.'); setArea_(); }); });
   $('#sOut').querySelectorAll('[data-tg]').forEach(b => b.onclick = () => run(b, async () => { const a = area(b.dataset.tg); await q(sb.from('dlv_areas').update({ aktif: !a.aktif }).eq('id', a.id)); await loadAll(); setArea_(); }));
   $('#sOut').querySelectorAll('[data-ak]').forEach(b => b.onclick = () => {
     const a = area(b.dataset.ak), cur = korlapAktif(a.id).map(x => x.korlap_id), hist = D.korlap.filter(x => x.area_id === a.id && x.selesai);
@@ -869,11 +1007,12 @@ function setTitik() {
     const scope = t.area_id ? t.area_id : t.division_id ? 'DLV' : 'ALL';
     openModal(`${modalHead(id ? 'Ubah titik' : 'Tambah titik', 'Koordinat bisa diambil dari Google Maps (klik kanan pada lokasi) atau dengan berdiri di lokasi lalu pakai lokasi saat ini.')}
     <div class="form-grid"><label class="f"><span>Nama titik</span><input id="tkNama" value="${esc(t.nama)}" placeholder="contoh: Hub PIK 1"></label>
-      <label class="f"><span>Berlaku untuk</span><select id="tkScope">${opt('DLV', 'Semua Delivery (kurir & staf)', scope)}${opt('ALL', 'Semua divisi', scope)}${D.areas.map(a => opt(a.id, 'Kurir area ' + a.nama, scope)).join('')}</select></label>
+      <label class="f"><span>Berlaku untuk</span><select id="tkScope">${opt('DLV', 'Semua Delivery (kurir & staf)', scope)}${opt('ALL', 'Semua divisi', scope)}${D.areas.map(a => opt(a.id, 'Kurir area ' + a.nama + ' (' + (branch(a.branch_id).nama || '') + ')', scope)).join('')}</select></label>
       <label class="f"><span>Latitude</span><input id="tkLat" inputmode="decimal" value="${t.lat}"></label><label class="f"><span>Longitude</span><input id="tkLng" inputmode="decimal" value="${t.lng}"></label>
       <label class="f"><span>Radius (meter)</span><input id="tkRad" type="number" min="20" max="1000" step="10" value="${t.radius_m}"></label>
       <label class="f"><span>Status</span><select id="tkAkt">${opt('1', 'Aktif', t.aktif ? '1' : '0')}${opt('0', 'Nonaktif', t.aktif ? '1' : '0')}</select></label></div>
-    <div class="actions" style="justify-content:space-between"><button class="btn-sm" id="tkHere">Pakai lokasi saya saat ini</button><span><button data-close>Batal</button> <button class="btn-primary" id="tkSave">Simpan</button></span></div>`);
+    <div class="actions" style="justify-content:space-between"><span><button class="btn-sm" id="tkHere">Pakai lokasi saya saat ini</button>${id ? ' <button class="btn-sm btn-danger" id="tkDel">Hapus titik</button>' : ''}</span><span><button data-close>Batal</button> <button class="btn-primary" id="tkSave">Simpan</button></span></div>`);
+    if (id) $('#tkDel').onclick = () => { if (!confirm('Hapus titik ' + t.nama + '?')) return; run($('#tkDel'), async () => { const { error } = await sb.from('attendance_points').delete().eq('id', id); if (error) throw new Error(/foreign key|violates/i.test(error.message) ? 'Titik ini sudah dipakai untuk absen, jadi tidak bisa dihapus (supaya riwayat absen tetap lengkap). Ubah statusnya menjadi Nonaktif.' : error.message); await loadAll(); closeModal(); toast('Titik dihapus.'); setTitik(); }); };
     $('#tkHere').onclick = () => navigator.geolocation.getCurrentPosition(p => { $('#tkLat').value = p.coords.latitude.toFixed(6); $('#tkLng').value = p.coords.longitude.toFixed(6); toast('Lokasi terisi (±' + Math.round(p.coords.accuracy) + ' m).'); }, () => toast('Lokasi tidak terbaca.', true), { enableHighAccuracy: true, timeout: 15000 });
     $('#tkSave').onclick = () => run($('#tkSave'), async () => {
       const sc = $('#tkScope').value, lat = Number($('#tkLat').value.replace(',', '.')), lng = Number($('#tkLng').value.replace(',', '.'));
