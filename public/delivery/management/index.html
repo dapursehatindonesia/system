@@ -631,9 +631,9 @@ async function reimburseDetail(r, all, v) {
 /* ---------- Pengaturan ---------- */
 let STab = 'area';
 function pagePengaturan(v) {
-  v.innerHTML = `<div class="tabs" role="tablist">${[['area', 'Branch, area & korlap'], ['titik', 'Titik absensi'], ['target', 'Target box']].map(([k, l]) => `<button role="tab" aria-selected="${STab === k}" data-t="${k}">${l}</button>`).join('')}</div><div id="sOut"></div>`;
+  v.innerHTML = `<div class="tabs" role="tablist">${[['area', 'Branch, area & korlap'], ['titik', 'Titik absensi'], ['target', 'Target box'], ['sync', 'Sinkronisasi data']].map(([k, l]) => `<button role="tab" aria-selected="${STab === k}" data-t="${k}">${l}</button>`).join('')}</div><div id="sOut"></div>`;
   v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { STab = b.dataset.t; pagePengaturan(v); });
-  Promise.resolve().then(() => ({ area: setArea_, titik: setTitik, target: setTarget })[STab]()).catch(e => toast(e.message, true));
+  Promise.resolve().then(() => ({ area: setArea_, titik: setTitik, target: setTarget, sync: setSync })[STab]()).catch(e => toast(e.message, true));
 }
 function setArea_() {
   const korlaps = D.people.filter(p => p.position_id === 'korlap' && p.aktif);
@@ -716,33 +716,33 @@ async function setTarget() {
   });
 }
 
-/* ---------- Router ---------- */
-const PAGES = { dashboard: pageDashboard, penilaian: pagePenilaian, laporan: pageLaporan, absensi: pageAbsensi, reimburse: pageReimburse, akun: pageAkun, pengaturan: pagePengaturan };
-function render() {
-  stopCam(); clearInterval(absenSaya.t);
-  const allowed = NAV.filter(n => n.id && n.ok());
-  let id = location.hash.slice(1); if (!allowed.some(n => n.id === id)) id = 'dashboard';
-  const has = i => { for (let j = i + 1; j < NAV.length && !NAV[j].grp; j++) if (NAV[j].ok()) return true; return false; };
-  $('#nav').innerHTML = NAV.map((n, i) => n.grp ? (has(i) ? `<div class="grp">${n.grp}</div>` : '') : n.ok() ? `<a href="#${n.id}" class="${n.id === id ? 'active' : ''}">${n.label}</a>` : '').join('');
-  const lbl = NAV.find(n => n.id === id).label; $('#pageTitle').textContent = lbl; document.title = lbl + ' · Management Delivery';
-  Promise.resolve(PAGES[id]($('#view'))).catch(e => $('#view').innerHTML = `<div class="card empty">Gagal memuat: ${esc(e.message)}</div>`);
+/* ---------- Sinkronisasi spreadsheet ---------- */
+async function fnCall(name, body) {
+  const { data, error } = await sb.functions.invoke(name, { body });
+  if (error) { let m = error.message; try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (_) { } throw new Error(m); }
+  if (data && data.error) throw new Error(data.error);
+  return data;
 }
-window.addEventListener('hashchange', () => { document.body.classList.remove('nav-open'); render(); window.scrollTo(0, 0); });
-$('#menuBtn').onclick = () => document.body.classList.add('nav-open');
-$('#scrim').onclick = () => document.body.classList.remove('nav-open');
-$('#logoutLink').onclick = e => { e.preventDefault(); HGAuth.logout(); };
-
-(async () => {
-  const me = await HGAuth.guard('dlv-mgmt');
-  ME = me.profile;
-  const pusat = !!(await q(sb.rpc('admin_pusat'))), dlv = ME.division_id === 'DLV', pj = ME.position_id;
-  R = { pusat, admin: pusat || (dlv && pj === 'admin'), manajer: pusat || (dlv && pj === 'manajer'), hrd: dlv && pj === 'hrd', korlap: dlv && pj === 'korlap' };
-  R.staf = R.admin || R.manajer || R.hrd;
-  $('#meBox').innerHTML = `<b>${esc(ME.nama)}</b>${esc(ME.positions ? ME.positions.nama : pj)}`;
-  try { await loadAll(); } catch (e) { $('#view').innerHTML = `<div class="card empty">Gagal memuat data: ${esc(e.message)}</div>`; return; }
-  render();
-})();
-
-</script>
-</body>
-</html>
+async function setSync() {
+  clearInterval(setSync.t);
+  const out = $('#sOut'); if (!out) return;
+  const logs = await q(sb.from('sync_log').select('*').order('mulai', { ascending: false }).limit(30));
+  const latest = {}; logs.forEach(l => { if (!latest[l.sumber] && l.status !== 'berjalan') latest[l.sumber] = l; });
+  const ids = Object.values(latest).map(l => l.id);
+  const um = ids.length ? await q(sb.from('sync_unmatched').select('*').in('sync_id', ids)) : [];
+  const jalan = logs.some(l => l.status === 'berjalan');
+  const chip = s => s === 'sukses' ? 'c-ok' : s === 'gagal' ? 'c-bad' : 'c-warn';
+  out.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><div><h2>Sinkronisasi spreadsheet</h2><p class="sub" style="margin:0">SLA, complaint, dan cost disalin otomatis setiap hari sekitar pukul 01.00 (60 hari / 3 bulan terakhir). Gunakan tombol ini kalau perlu data terbaru sebelum jadwal.</p></div>
+    <div class="row"><button class="btn-soft" id="syPenuh" ${jalan ? 'disabled' : ''}>Sinkronkan penuh</button><button class="btn-primary" id="syBtn" ${jalan ? 'disabled' : ''}>${jalan ? 'Sedang berjalan…' : 'Sinkronkan sekarang'}</button></div></div>
+    <div class="kpis">${['SLA', 'Complaint', 'Cost'].map(s => { const l = latest[s]; return `<div class="kpi"><span>${s}</span><b style="font-size:20px">${l ? `<span class="chip ${chip(l.status)}">${l.status}</span>` : '—'}</b><small>${l ? fmtDT(l.mulai) + ' · ' + (l.baris_masuk || 0).toLocaleString('id-ID') + ' baris' : 'Belum pernah'}</small></div>`; }).join('')}</div></div>
+  <div class="card"><h2>Nama yang tidak cocok</h2><p class="sub">Baris ini tetap tersimpan, tetapi tidak masuk ke performa kurir karena namanya tidak sama dengan data kurir. Samakan ejaan di spreadsheet atau di Akun kurir, lalu sinkronkan ulang.</p>
+  ${um.length ? `<div class="tbl-wrap"><table><thead><tr><th>Sumber</th><th>Nama di spreadsheet</th></tr></thead><tbody>${um.sort((a, b) => a.nama.localeCompare(b.nama)).map(u => `<tr><td>${esc(u.sumber)}</td><td><span class="chip c-warn">${esc(u.nama)}</span></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Semua nama cocok.</p>'}</div>
+  <div class="card"><h2>Riwayat</h2><div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Mulai</th><th>Sumber</th><th>Mode</th><th>Status</th><th class="num">Masuk</th><th class="num">Dilewati</th><th>Keterangan</th></tr></thead><tbody>
+  ${logs.map(l => `<tr><td>${fmtDT(l.mulai)}</td><td>${esc(l.sumber)}</td><td class="small">${esc(l.mode || '—')}</td><td><span class="chip ${chip(l.status)}">${l.status}</span></td><td class="num">${(l.baris_masuk || 0).toLocaleString('id-ID')}</td><td class="num">${l.baris_gagal || 0}</td><td class="small wrap">${esc(l.pesan || '')}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">Belum ada sinkronisasi.</td></tr>'}
+  </tbody></table></div></div>`;
+  const go = (btn, mode) => run(btn, async () => {
+    if (mode === 'penuh' && !confirm('Sinkronkan SEMUA baris spreadsheet? Bisa memakan waktu beberapa menit.')) return;
+    const r = await fnCall('sync-sheet', { action: 'picu', mode }); toast(r.pesan);
+    let n = 0; setSync.t = setInterval(() => { if (STab !== 'sync' || !$('#syBtn') || ++n > 24) return clearInterval(setSync.t); setSync().catch(() => { }); }, 10000);
+  });
+  $('#syBtn').onclick = () => go($('#syBtn'), 'normal'); $('#syPenuh').onclick = () => go($('#syPenuh'), 'penuh');
