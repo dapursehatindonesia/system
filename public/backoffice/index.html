@@ -722,7 +722,9 @@ function siapkan() {
   Object.entries(KOLOM).forEach(([k, al]) => { const i = head.findIndex(h => al.includes(h)); if (i >= 0) idx[k] = i; });
   if (!('nama' in idx) || !('jabatan' in idx)) { out.innerHTML = `<div class="card empty">Kolom <b>Nama</b> dan <b>Jabatan</b> tidak ditemukan. Judul kolom yang terbaca: ${raw[0].map(esc).join(', ')}</div>`; return; }
   const ada = new Set(ORG.profiles.map(p => normName(p.nama))), adaUser = new Set(ORG.profiles.map(p => p.username)), diFile = new Set(), userFile = new Set();
-  const areaAda = new Map(IMP.areas.map(a => [normName(a.nama), a])), brAda = new Map(IMP.branches.map(b => [normName(b.nama), b]));
+  const brNama = id => (IMP.branches.find(b => b.id === id) || {}).nama || '';
+  const areaAda = new Map(IMP.areas.map(a => [normName(brNama(a.branch_id)) + '|' + normName(a.nama), a])), brAda = new Map(IMP.branches.map(b => [normName(b.nama), b]));
+  const areaDiBranch = nm => IMP.areas.filter(a => normName(a.nama) === normName(nm));
   IMP.rows = raw.slice(1).map((r, i) => {
     const g = k => k in idx ? String(r[idx[k]] ?? '').trim().replace(/\s+/g, ' ') : '';
     const o = { baris: i + 2, nama: g('nama'), jabatanTeks: g('jabatan'), divisiTeks: g('divisi'), area: g('area'), branch: g('branch'), kontrak: kontrakOf(g('kontrak')), email: g('email').toLowerCase() || null, username: g('username').toLowerCase(), err: '', info: [] };
@@ -743,7 +745,10 @@ function siapkan() {
       o.username = u; userFile.add(u);
       if (o.position_id === 'kurir' && o.division_id === 'DLV') {
         if (!o.area) o.info.push('tanpa area');
-        else if (!areaAda.has(normName(o.area))) { o.info.push('area baru'); if (!o.branch && !IMP.defBranch) o.err = 'Area baru butuh Branch (isi kolom Branch atau pilih Branch default)'; else if (!brAda.has(normName(o.branch || IMP.defBranch))) o.info.push('branch baru'); }
+        else {
+          if (!o.branch) { const c = areaDiBranch(o.area); if (c.length === 1) o.branch = brNama(c[0].branch_id); else if (c.length > 1) o.err = `Area "${o.area}" ada di beberapa branch. Isi kolom Branch.`; else o.branch = IMP.defBranch; }
+          if (!o.err && !areaAda.has(normName(o.branch) + '|' + normName(o.area))) { o.info.push('area baru'); if (!o.branch) o.err = 'Area baru butuh Branch (isi kolom Branch atau pilih Branch default)'; else if (!brAda.has(normName(o.branch))) o.info.push('branch baru'); }
+        }
       }
     }
     return o;
@@ -753,7 +758,7 @@ function siapkan() {
     { key: 'baris', label: 'Baris', num: true }, { key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama || '—')}</b>` },
     { key: 'username', label: 'Username', render: r => r.err ? '—' : esc(r.username) },
     { key: 'jabatanTeks', label: 'Jabatan' }, { key: 'division_id', label: 'Divisi', render: r => r.division_id ? esc(div(r.division_id).nama) : (r.position_id && pos(r.position_id).cakupan === 'semua' ? 'Semua' : '—') },
-    { key: 'area', label: 'Area', render: r => esc(r.area || '—') }, { key: 'kontrak', label: 'Kontrak', render: r => esc(r.kontrak || '—') },
+    { key: 'area', label: 'Area', render: r => esc(r.area || '—') + (r.area && r.branch ? `<br><span class="small muted">${esc(r.branch)}</span>` : '') }, { key: 'kontrak', label: 'Kontrak', render: r => esc(r.kontrak || '—') },
     { key: 'status', label: 'Status', sort: r => r.err ? 0 : 1, render: r => r.err ? `<span class="chip ${/Sudah ada/.test(r.err) ? 'c-mute' : 'c-bad'}">${esc(r.err)}</span>` : `<span class="chip c-ok">Siap</span>${r.info.length ? ' <span class="small muted">' + esc(r.info.join(', ')) + '</span>' : ''}` }
   ];
   out.innerHTML = `<div class="kpis"><div class="kpi lead"><span>Siap diimpor</span><b>${ok.length}</b></div><div class="kpi"><span>Dilewati / bermasalah</span><b>${gagal.length}</b><small>lihat kolom Status</small></div><div class="kpi"><span>Area baru</span><b>${uniqArr(ok.filter(r => r.info.includes('area baru')).map(r => normName(r.area))).length}</b></div></div>
@@ -770,12 +775,13 @@ async function jalankanImpor(rows) {
   try {
     // 1. Branch & area baru
     const brMap = new Map(IMP.branches.map(b => [normName(b.nama), b.id]));
-    const needBr = uniqArr(rows.filter(r => r.info.includes('area baru')).map(r => r.branch || IMP.defBranch).filter(b => b && !brMap.has(normName(b))));
+    const needBr = uniqArr(rows.filter(r => r.info.includes('area baru')).map(r => r.branch).filter(b => b && !brMap.has(normName(b))));
     for (const b of needBr) { const x = await q(sb.from('dlv_branches').insert({ nama: b }).select('id').single()); brMap.set(normName(b), x.id); }
-    const arMap = new Map(IMP.areas.map(a => [normName(a.nama), a.id])), seen = new Set();
+    const brNm = id => (IMP.branches.find(b => b.id === id) || {}).nama || '';
+    const arMap = new Map(IMP.areas.map(a => [normName(brNm(a.branch_id)) + '|' + normName(a.nama), a.id])), seen = new Set();
     for (const r of rows.filter(r => r.info.includes('area baru'))) {
-      const k = normName(r.area); if (seen.has(k) || arMap.has(k)) continue; seen.add(k);
-      const x = await q(sb.from('dlv_areas').insert({ nama: r.area, branch_id: brMap.get(normName(r.branch || IMP.defBranch)) }).select('id').single()); arMap.set(k, x.id);
+      const k = normName(r.branch) + '|' + normName(r.area); if (seen.has(k) || arMap.has(k)) continue; seen.add(k);
+      const x = await q(sb.from('dlv_areas').insert({ nama: r.area, branch_id: brMap.get(normName(r.branch)) }).select('id').single()); arMap.set(k, x.id);
     }
     // 2. Akun (25 per panggilan)
     const hasil = [];
@@ -787,7 +793,8 @@ async function jalankanImpor(rows) {
     }
     // 3. Penugasan area kurir
     prog('Menugaskan kurir ke area…');
-    const tugas = hasil.filter(h => h.ok && h.position_id === 'kurir' && h.area && arMap.has(normName(h.area))).map(h => ({ profile_id: h.id, area_id: arMap.get(normName(h.area)), mulai: TODAY }));
+    const kA = h => normName(h.branch) + '|' + normName(h.area);
+    const tugas = hasil.filter(h => h.ok && h.position_id === 'kurir' && h.area && arMap.has(kA(h))).map(h => ({ profile_id: h.id, area_id: arMap.get(kA(h)), mulai: TODAY }));
     for (let i = 0; i < tugas.length; i += 500) await q(sb.from('dlv_penugasan').insert(tugas.slice(i, i + 500)));
     IMP.hasil = hasil; await loadAll();
     tampilHasil();
