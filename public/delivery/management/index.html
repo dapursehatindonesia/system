@@ -313,6 +313,7 @@ function showPassword(title, nama, login, pw) {
 /* ---------- Menu ---------- */
 const NAV = [
   { id: 'dashboard', label: 'Ringkasan', ok: () => true },
+  { id: 'performa', label: 'Dashboard performa', ok: () => true },
   { grp: 'Lapangan' },
   { id: 'penilaian', label: 'Isi penilaian', ok: () => R.admin || R.korlap },
   { id: 'laporan', label: 'Laporan penilaian', ok: () => true },
@@ -342,7 +343,199 @@ async function pageDashboard(v) {
     ${!D.areas.length ? '<li>Belum ada area. Buka <a href="#pengaturan">Pengaturan → Area & korlap</a>.</li>' : ''}
     ${!D.points.length ? '<li>Belum ada titik absensi. Buka <a href="#pengaturan">Pengaturan → Titik absensi</a>.</li>' : ''}
     ${tanpaArea ? `<li>${tanpaArea} kurir belum punya area. Buka <a href="#akun">Akun kurir</a>.</li>` : ''}</ul></div>` : ''}
-  <div class="card"><h2>Dashboard performa</h2><p class="sub" style="margin:0">Grafik box, delivery time, complaint, dan cost akan muncul di sini setelah sinkronisasi spreadsheet dipasang.</p></div>`;
+  <div class="card"><h2>Dashboard performa</h2><p class="sub" style="margin:0">Box, keterlambatan, complaint, dan cost per kurir dan area. <a href="#performa">Buka dashboard performa →</a></p></div>`;
+}
+
+/* ---------- Dashboard performa (data sync spreadsheet) ---------- */
+const DSH = { bulan: [monthKey(TODAY)], batch: [], tanggal: [], branch: [], area: [], kurir: [] };
+const DCACHE = { key: '', sla: [], comp: [], cost: [], target: [] };
+const uniq = a => [...new Set(a)];
+const num = n => Math.round(n || 0).toLocaleString('id-ID');
+const fmtPct = (v, d = 1) => v == null ? '—' : v.toLocaleString('id-ID', { minimumFractionDigits: d, maximumFractionDigits: d }) + '%';
+const rupiahShort = n => n >= 1e9 ? 'Rp ' + (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' M' : n >= 1e6 ? 'Rp ' + (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt' : rupiah(n);
+const isPayroll = c => /payroll/i.test(c.batch || '');
+/** Ambil semua baris (Supabase membatasi 1000 baris per permintaan). */
+async function fetchAll(make) {
+  let out = [], from = 0;
+  for (;;) { const { data, error } = await make().range(from, from + 999); if (error) throw new Error(error.message); out = out.concat(data); if (data.length < 1000 || from > 300000) break; from += 1000; }
+  return out;
+}
+function enrich(r, nama) {
+  const pid = r.profile_id, a = pid ? area(areaOf(pid)) : {}, b = a.id ? branch(a.branch_id) : {};
+  const nm = (pid && person(pid).nama) || nama || '';
+  return { ...r, kKey: pid || (nm ? 'n:' + normName(nm) : 'n:-'), kNama: nm || 'Tanpa kurir', terdaftar: !!pid,
+    areaNama: a.nama || r.area || (nm ? 'Tidak terdaftar' : 'Tanpa kurir'), branchNama: b.nama || r.branch_cost || 'Tidak terdaftar' };
+}
+async function loadDash() {
+  const months = [...DSH.bulan].sort(); const key = months.join(',');
+  if (DCACHE.key === key) return;
+  const ranges = months.map(m => [m + '-01', monthKey(addDays(m + '-01', 32)) + '-01']);
+  const per = await Promise.all(ranges.map(([s, e]) => Promise.all([
+    fetchAll(() => sb.from('dlv_sla').select('id,batch,tanggal,sesi,mode,nama_kurir,profile_id,max_time,qty_box,box_terlambat').gte('tanggal', s).lt('tanggal', e).order('id')),
+    fetchAll(() => sb.from('dlv_complaints').select('id,batch,tanggal,sesi,branch,nama_customer,tipe,keterangan,nama_kurir,kode_warna,profile_id').gte('tanggal', s).lt('tanggal', e).order('id')),
+    fetchAll(() => sb.from('dlv_costs').select('*').eq('bulan', s).order('id'))
+  ])));
+  DCACHE.sla = per.flatMap(p => p[0]).map(r => enrich(r, r.nama_kurir));
+  DCACHE.comp = per.flatMap(p => p[1]).map(r => enrich(r, r.nama_kurir));
+  DCACHE.cost = per.flatMap(p => p[2]).map(r => enrich({ ...r, branch_cost: r.branch }, r.nama));
+  const tm = months[months.length - 1] + '-01';
+  DCACHE.target = await q(sb.from('dlv_target_box').select('*').eq('bulan', tm));
+  DCACHE.key = key;
+}
+const allRows = () => [...DCACHE.sla, ...DCACHE.comp, ...DCACHE.cost];
+function dashOptions(k) {
+  const inB = r => !DSH.batch.length || DSH.batch.includes(String(r.batch ?? ''));
+  if (k === 'bulan') { const t = new Date(), out = []; for (let i = 0; i < 12; i++) { const d = new Date(t.getFullYear(), t.getMonth() - i, 1); out.push(iso(d).slice(0, 7)); } return out.map(m => [m, monthLabel(m)]); }
+  if (k === 'batch') return uniq(allRows().map(r => String(r.batch ?? '')).filter(Boolean)).sort((a, b) => a.localeCompare(b, 'id', { numeric: true })).map(b => [b, /^\d+$/.test(b) ? 'Batch ' + b : b]);
+  if (k === 'tanggal') return uniq([...DCACHE.sla, ...DCACHE.comp].filter(inB).map(r => r.tanggal)).sort().reverse().map(d => [d, HARI[parse(d).getDay()] + ', ' + fmtDate(d)]);
+  if (k === 'branch') return uniq(allRows().map(r => r.branchNama)).sort().map(b => [b, b]);
+  if (k === 'area') return uniq(allRows().filter(r => !DSH.branch.length || DSH.branch.includes(r.branchNama)).map(r => r.areaNama)).sort().map(a => [a, a]);
+  if (k === 'kurir') { const m = new Map(); allRows().filter(r => (!DSH.branch.length || DSH.branch.includes(r.branchNama)) && (!DSH.area.length || DSH.area.includes(r.areaNama))).forEach(r => m.set(r.kKey, r.kNama + (r.terdaftar ? '' : ' (tidak terdaftar)'))); return [...m].sort((a, b) => a[1].localeCompare(b[1])); }
+  return [];
+}
+const matchOrg = r => (!DSH.branch.length || DSH.branch.includes(r.branchNama)) && (!DSH.area.length || DSH.area.includes(r.areaNama)) && (!DSH.kurir.length || DSH.kurir.includes(r.kKey));
+const matchBatch = r => !DSH.batch.length || DSH.batch.includes(String(r.batch ?? ''));
+const fSla = () => DCACHE.sla.filter(r => matchOrg(r) && matchBatch(r) && (!DSH.tanggal.length || DSH.tanggal.includes(r.tanggal)));
+const fComp = () => DCACHE.comp.filter(r => matchOrg(r) && matchBatch(r) && (!DSH.tanggal.length || DSH.tanggal.includes(r.tanggal)));
+const fCost = () => DCACHE.cost.filter(r => matchOrg(r) && matchBatch(r));   // cost mingguan tidak punya tanggal
+function ringkas(sla, comp, cost) {
+  const box = sla.reduce((a, x) => a + (x.qty_box || 0), 0), late = sla.reduce((a, x) => a + (x.box_terlambat || 0), 0);
+  const mode = {}; sla.forEach(x => mode[x.mode] = (mode[x.mode] || 0) + (x.qty_box || 0));
+  const c = cost.filter(x => !isPayroll(x)).reduce((a, x) => a + Number(x.total_cost || 0), 0);
+  const pay = cost.filter(isPayroll).reduce((a, x) => a + Number(x.total_weekly || 0), 0);
+  return { box, late, mode, comp: comp.length, cost: c, payroll: pay, pLate: box ? late / box * 100 : null, pComp: box ? comp.length / box * 100 : null, cpb: box ? c / box : null };
+}
+const PIE = ['#1d8a5b', '#e0b400', '#2b6fb6', '#c64039', '#7c4dcc', '#e07b2c', '#6b7f74'];
+function pieChart(items, label) {
+  items = items.filter(x => x.v > 0); const tot = items.reduce((a, x) => a + x.v, 0);
+  if (!tot) return '<div class="empty">Tidak ada data.</div>';
+  const r = 60, C = 2 * Math.PI * r; let off = 0;
+  const segs = items.map((x, i) => { const len = x.v / tot * C, s = `<circle r="${r}" cx="90" cy="90" fill="none" stroke="${PIE[i % PIE.length]}" stroke-width="36" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}" transform="rotate(-90 90 90)"><title>${esc(x.l)}: ${num(x.v)}</title></circle>`; off += len; return s; }).join('');
+  return `<div class="pie"><svg viewBox="0 0 180 180" width="170" height="170" role="img" aria-label="${esc(label)}">${segs}<text x="90" y="88" text-anchor="middle" class="pie-n">${num(tot)}</text><text x="90" y="108" text-anchor="middle" class="pie-l">total</text></svg><ul class="pie-legend">${items.map((x, i) => `<li><span class="sw" style="background:${PIE[i % PIE.length]}"></span><span>${esc(x.l)}</span><b>${num(x.v)}</b><span class="muted">${fmtPct(x.v / tot * 100)}</span></li>`).join('')}</ul></div>`;
+}
+function barChart(items, fmt, cls) {
+  const max = Math.max(0, ...items.map(x => x.v)) || 1;
+  return `<div class="bars">${items.map(x => `<div class="bar"><span class="bar-l" title="${esc(x.l)}">${esc(x.l)}</span><div class="bar-track"><div class="bar-fill ${cls || ''}" style="width:${Math.max(x.v / max * 100, x.v ? 1 : 0)}%"></div></div><span class="small"><b>${fmt(x.v)}</b></span></div>`).join('') || '<div class="empty">Tidak ada data.</div>'}</div>`;
+}
+const chartCard = (t, s, b) => `<div class="card"><h2>${t}</h2><p class="sub">${s}</p>${b}</div>`;
+function msSummary(k) { const v = DSH[k]; if (!v.length) return 'Semua'; if (v.length === 1) { const o = dashOptions(k).find(x => x[0] === v[0]); return o ? o[1] : '1 dipilih'; } return v.length + ' dipilih'; }
+function closeAllMs() { document.querySelectorAll('.ms-pop').forEach(p => { p.hidden = true; p.previousElementSibling.setAttribute('aria-expanded', 'false'); }); }
+document.addEventListener('click', closeAllMs);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllMs(); });
+function bindMs(root, onChange) {
+  root.querySelectorAll('.ms').forEach(ms => {
+    const k = ms.dataset.ms, btn = ms.querySelector('.ms-btn'), pop = ms.querySelector('.ms-pop');
+    const fill = () => {
+      const opts = dashOptions(k);
+      pop.innerHTML = `${opts.length > 8 ? '<input type="search" class="ms-q" placeholder="Cari">' : ''}<div class="ms-list">${opts.map(([v, l]) => `<label data-l="${esc(l.toLowerCase())}"><input type="checkbox" value="${esc(v)}" ${DSH[k].includes(v) ? 'checked' : ''}>${esc(l)}</label>`).join('') || '<div class="muted small" style="padding:8px">Tidak ada pilihan.</div>'}</div><div class="ms-foot"><button type="button" class="btn-sm" data-clear>Hapus pilihan</button></div>`;
+      const qq = pop.querySelector('.ms-q'); if (qq) qq.oninput = () => { const t = qq.value.toLowerCase(); pop.querySelectorAll('label').forEach(l => l.hidden = !l.dataset.l.includes(t)); };
+      pop.querySelectorAll('input[type=checkbox]').forEach(c => c.onchange = () => { DSH[k] = [...pop.querySelectorAll('input[type=checkbox]:checked')].map(x => x.value); onChange(k); });
+      pop.querySelector('[data-clear]').onclick = () => { DSH[k] = []; pop.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false); onChange(k); };
+    };
+    pop.onclick = e => e.stopPropagation();
+    btn.onclick = e => { e.stopPropagation(); const open = pop.hidden; closeAllMs(); if (open) { fill(); pop.hidden = false; btn.setAttribute('aria-expanded', 'true'); } };
+  });
+}
+async function pagePerforma(v) {
+  v.innerHTML = `<div class="card"><div class="filters">${[['bulan', 'Bulan'], ['batch', 'Batch'], ['tanggal', 'Tanggal'], ['branch', 'Branch'], ['area', 'Area'], ['kurir', 'Nama kurir']].map(([k, l]) => `<div class="ms" data-ms="${k}"><button type="button" class="ms-btn" aria-haspopup="true" aria-expanded="false"><span class="ms-lbl">${l}</span><span class="ms-val">${esc(msSummary(k))}</span></button><div class="ms-pop" hidden></div></div>`).join('')}</div>
+    <div class="row" style="justify-content:space-between;margin-top:10px"><p class="small muted" style="margin:0">Bisa pilih lebih dari satu. Data dari spreadsheet, diperbarui setiap hari pukul 01.00. Area mengikuti penugasan kurir saat ini; nama yang belum punya akun tampil sebagai "Tidak terdaftar".</p><button class="btn-sm" id="dReset">Reset filter</button></div></div>
+  <div id="dOut"><div class="card empty">Memuat data…</div></div>`;
+  const redraw = async k => {
+    if (k === 'bulan') { if (!DSH.bulan.length) DSH.bulan = [monthKey(TODAY)]; DSH.batch = []; DSH.tanggal = []; $('#dOut').innerHTML = '<div class="card empty">Memuat data…</div>'; try { await loadDash(); } catch (e) { $('#dOut').innerHTML = `<div class="card empty">${esc(e.message)}</div>`; return; } }
+    const deps = { batch: ['tanggal'], branch: ['area', 'kurir'], area: ['kurir'] };
+    (deps[k] || []).forEach(d => { const ok = new Set(dashOptions(d).map(o => o[0])); DSH[d] = DSH[d].filter(x => ok.has(x)); });
+    document.querySelectorAll('.ms').forEach(ms => ms.querySelector('.ms-val').textContent = msSummary(ms.dataset.ms));
+    drawPerforma();
+  };
+  bindMs(v, redraw);
+  $('#dReset').onclick = () => { Object.assign(DSH, { bulan: [monthKey(TODAY)], batch: [], tanggal: [], branch: [], area: [], kurir: [] }); pagePerforma(v); };
+  await loadDash(); drawPerforma();
+}
+function drawPerforma() {
+  const out = $('#dOut'); if (!out) return;
+  const sla = fSla(), comp = fComp(), cost = fCost(), T = ringkas(sla, comp, cost);
+  if (!DCACHE.sla.length && !DCACHE.comp.length && !DCACHE.cost.length) { out.innerHTML = '<div class="card empty">Belum ada data untuk bulan ini. Pastikan sinkronisasi spreadsheet sudah berjalan (Pengaturan → Sinkronisasi data), atau pilih bulan lain.</div>'; return; }
+  const grp = (rows, key) => { const m = {}; rows.forEach(r => (m[r[key]] = m[r[key]] || []).push(r)); return m; };
+  const areas = uniq([...sla, ...comp, ...cost].map(r => r.areaNama)), gs = grp(sla, 'areaNama'), gc = grp(comp, 'areaNama'), gk = grp(cost, 'areaNama');
+  const per = areas.map(a => ({ a, ...ringkas(gs[a] || [], gc[a] || [], gk[a] || []) }));
+  const bs = grp(sla, 'branchNama'), perBr = Object.keys(bs).map(b => ({ l: b, v: bs[b].reduce((s, x) => s + (x.qty_box || 0), 0) }));
+  const A = (f, keep) => per.filter(x => keep || f(x) != null).map(x => ({ l: x.a, v: f(x) || 0 }));
+  const desc = (a, b) => b.v - a.v, asc = (a, b) => a.v - b.v;
+  const modes = Object.entries(T.mode).sort((a, b) => b[1] - a[1]);
+  const byCat = Object.entries(comp.reduce((o, c) => (o[c.tipe || 'Lainnya'] = (o[c.tipe || 'Lainnya'] || 0) + 1, o), {})).map(([l, v]) => ({ l, v })).sort(desc);
+  out.innerHTML = `<div class="kpis">
+    <div class="kpi lead"><span>Total box</span><b>${num(T.box)}</b><small>${uniq(sla.map(r => r.kKey)).length} kurir</small></div>
+    <div class="kpi"><span>Cost</span><b title="${rupiah(T.cost)}">${rupiahShort(T.cost)}</b><small>${T.cpb == null ? '—' : rupiah(T.cpb) + ' per box'}</small></div>
+    ${T.payroll ? `<div class="kpi"><span>Payroll</span><b title="${rupiah(T.payroll)}">${rupiahShort(T.payroll)}</b><small>bulanan, terpisah dari cost mingguan</small></div>` : ''}
+    <div class="kpi"><span>Complaint</span><b>${num(T.comp)}</b><small>${comp.filter(c => !c.nama_kurir).length ? comp.filter(c => !c.nama_kurir).length + ' tanpa kurir' : 'kasus'}</small></div>
+    <div class="kpi"><span>% complaint</span><b>${fmtPct(T.pComp, 2)}</b><small>dari total box</small></div>
+    <div class="kpi"><span>% terlambat</span><b>${fmtPct(T.pLate)}</b><small>${num(T.late)} box terlambat</small></div>
+    ${modes.map(([m, n]) => `<div class="kpi"><span>Box ${esc(m)}</span><b>${num(n)}</b><small>${fmtPct(T.box ? n / T.box * 100 : null)} dari total</small></div>`).join('')}</div>
+  ${DSH.tanggal.length && cost.length ? '<div class="note">Filter tanggal tidak berlaku untuk cost, karena cost direkap per batch (mingguan/bulanan). Gunakan filter Batch untuk cost.</div>' : ''}
+  <div class="charts">
+    ${chartCard('Box per bisnis', 'Dari kolom Mode di SLA.', pieChart(modes.map(([l, v]) => ({ l, v })), 'Box per bisnis'))}
+    ${chartCard('Box per branch', 'Diurutkan dari yang terbanyak.', barChart(perBr.sort(desc), num))}
+    ${chartCard('Box per area', 'Diurutkan dari yang terbanyak.', barChart(A(x => x.box, true).filter(x => x.v).sort(desc), num))}
+    ${chartCard('Cost per box per area', 'Diurutkan dari yang termurah.', barChart(A(x => x.cost ? x.cpb : null).sort(asc), rupiah, 'i'))}
+    ${chartCard('Complaint per area', 'Diurutkan dari yang terbanyak.', barChart(A(x => x.comp, true).filter(x => x.v).sort(desc), num, 'b'))}
+    ${chartCard('% complaint per area', 'Complaint dibagi total box.', barChart(A(x => x.pComp).sort(desc), x => fmtPct(x, 2), 'b'))}
+    ${chartCard('% terlambat per area', 'Box terlambat dibagi total box.', barChart(A(x => x.pLate).sort(desc), x => fmtPct(x), 'w'))}
+    ${chartCard('Complaint per kategori', 'Berdasarkan tipe complaint.', pieChart(byCat, 'Complaint per kategori'))}
+  </div>
+  <div class="card" style="margin-top:16px" id="dKurir"></div><div class="card" style="margin-top:16px" id="dComp"></div>`;
+  drawKurirTbl(sla, comp, cost); drawCompTbl(comp);
+}
+function drawKurirTbl(sla, comp, cost) {
+  const tm = [...DSH.bulan].sort().slice(-1)[0], def = k => (D.targetDefault.find(x => x.kontrak === k) || {}).target || 0;
+  const monthBox = {}; DCACHE.sla.filter(r => monthKey(r.tanggal) === tm).forEach(r => monthBox[r.kKey] = (monthBox[r.kKey] || 0) + (r.qty_box || 0));
+  const keys = uniq([...sla, ...comp, ...cost].map(r => r.kKey));
+  const rows = keys.map(k => {
+    const s = sla.filter(r => r.kKey === k), c = comp.filter(r => r.kKey === k), co = cost.filter(r => r.kKey === k), any = s[0] || c[0] || co[0];
+    const S = ringkas(s, c, co), pid = any.profile_id, tg = pid ? ((DCACHE.target.find(t => t.profile_id === pid) || {}).target ?? def(person(pid).kontrak)) : null;
+    return { k, nama: any.kNama, terdaftar: any.terdaftar, area: any.areaNama, ...S, hg: S.mode.HG || 0, bk: S.mode.BK || 0, lain: S.box - (S.mode.HG || 0) - (S.mode.BK || 0), mb: monthBox[k] || 0, tg, capai: tg ? (monthBox[k] || 0) / tg * 100 : null };
+  });
+  const cols = [
+    { key: 'nama', label: 'Kurir', render: r => `<b>${esc(r.nama)}</b>${r.terdaftar ? '' : '<br><span class="chip c-warn">Tidak terdaftar</span>'}` },
+    { key: 'area', label: 'Area' },
+    { key: 'box', label: 'Box', num: true, render: r => num(r.box) }, { key: 'hg', label: 'HG', num: true, render: r => num(r.hg) }, { key: 'bk', label: 'BK', num: true, render: r => num(r.bk) },
+    { key: 'lain', label: 'Lainnya', num: true, render: r => num(r.lain) },
+    { key: 'pLate', label: '% terlambat', num: true, render: r => r.pLate == null ? '—' : `<span class="chip ${r.pLate <= 5 ? 'c-ok' : r.pLate <= 15 ? 'c-warn' : 'c-bad'}">${fmtPct(r.pLate)}</span>` },
+    { key: 'comp', label: 'Complaint', num: true, render: r => r.comp ? `<span class="chip c-bad">${r.comp}</span>` : '0' },
+    { key: 'pComp', label: '% complaint', num: true, render: r => fmtPct(r.pComp, 2) },
+    { key: 'cost', label: 'Cost', num: true, render: r => r.cost ? rupiah(r.cost) : '—', sort: r => r.cost || null },
+    { key: 'payroll', label: 'Payroll', num: true, render: r => r.payroll ? rupiah(r.payroll) : '—', sort: r => r.payroll || null },
+    { key: 'cpb', label: 'Cost/box', num: true, render: r => r.cpb == null ? '—' : rupiah(r.cpb) },
+    { key: 'capai', label: 'Target ' + monthLabel(tm), num: true, render: r => r.capai == null ? '—' : `${num(r.mb)}/${num(r.tg)} <span class="chip ${r.capai >= 100 ? 'c-ok' : r.capai >= 70 ? 'c-warn' : 'c-mute'}">${r.capai.toFixed(0)}%</span>` }
+  ];
+  const el = $('#dKurir');
+  el.innerHTML = `<h2>Detail per kurir</h2><p class="sub">${rows.length} nama. Klik panah di judul kolom untuk mengurutkan, klik baris untuk detail.</p>` + dataTable('dk', cols, rows, { sortKey: 'box', sortDir: 'desc', freezeFirst: true, rowAttr: r => `class="click" data-k="${esc(r.k)}" tabindex="0"`, empty: 'Tidak ada data.' });
+  bindDataTable(el, 'dk', () => drawKurirTbl(sla, comp, cost));
+  el.querySelectorAll('tr[data-k]').forEach(tr => { const go = () => detailKurir(tr.dataset.k); tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
+}
+let DCAT = '';
+function drawCompTbl(comp) {
+  const cats = uniq(comp.map(c => c.tipe || 'Lainnya')).sort(); if (DCAT && !cats.includes(DCAT)) DCAT = '';
+  const rows = comp.filter(c => !DCAT || (c.tipe || 'Lainnya') === DCAT);
+  const cols = [
+    { key: 'tanggal', label: 'Tanggal', render: r => fmtDate(r.tanggal) }, { key: 'batch', label: 'Batch', sort: r => r.batch || '' },
+    { key: 'kNama', label: 'Kurir', render: r => r.nama_kurir ? `<b>${esc(r.kNama)}</b>` : '<span class="chip c-mute">Tanpa kurir</span>' },
+    { key: 'areaNama', label: 'Area' }, { key: 'branch', label: 'Bisnis/branch' }, { key: 'tipe', label: 'Kategori', render: r => `<span class="chip c-bad">${esc(r.tipe || 'Lainnya')}</span>` },
+    { key: 'sesi', label: 'Sesi' }, { key: 'nama_customer', label: 'Customer' }, { key: 'kode_warna', label: 'Kode warna' }, { key: 'keterangan', label: 'Keterangan', wrap: true }
+  ];
+  const el = $('#dComp');
+  el.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Detail complaint</h2><p class="sub" style="margin:0">${rows.length} complaint sesuai filter.</p></div><label class="f"><span>Kategori</span><select id="dCat"><option value="">Semua kategori</option>${cats.map(c => opt(c, c, DCAT)).join('')}</select></label></div>` +
+    dataTable('dc', cols, rows, { sortKey: 'tanggal', sortDir: 'desc', maxHeight: 460, empty: 'Tidak ada complaint.' });
+  bindDataTable(el, 'dc', () => drawCompTbl(comp));
+  $('#dCat').onchange = e => { DCAT = e.target.value; drawCompTbl(comp); };
+}
+function detailKurir(k) {
+  const sla = fSla().filter(r => r.kKey === k).sort((a, b) => (b.tanggal + b.sesi).localeCompare(a.tanggal + a.sesi)), comp = fComp().filter(r => r.kKey === k), cost = fCost().filter(r => r.kKey === k);
+  const any = sla[0] || comp[0] || cost[0]; if (!any) return; const S = ringkas(sla, comp, cost);
+  openModal(`${modalHead(any.kNama, esc(any.areaNama) + ' · ' + esc(any.branchNama) + (any.terdaftar ? '' : ' · belum punya akun'))}
+  <div class="kpis" style="margin-top:0"><div class="kpi"><span>Box</span><b>${num(S.box)}</b><small>${Object.entries(S.mode).map(([m, n]) => m + ' ' + num(n)).join(' · ')}</small></div><div class="kpi"><span>% terlambat</span><b>${fmtPct(S.pLate)}</b></div><div class="kpi"><span>Complaint</span><b>${S.comp}</b></div><div class="kpi"><span>Cost</span><b style="font-size:20px">${rupiahShort(S.cost)}</b><small>${S.payroll ? 'payroll ' + rupiahShort(S.payroll) : ''}</small></div></div>
+  <h3 style="font-size:15px;margin:6px 0 8px">Complaint</h3>${comp.length ? `<div class="tbl-wrap"><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Sesi</th><th>Customer</th><th>Keterangan</th></tr></thead><tbody>${comp.map(c => `<tr><td>${fmtDate(c.tanggal)}</td><td><span class="chip c-bad">${esc(c.tipe || '—')}</span></td><td>${esc(c.sesi || '')}</td><td>${esc(c.nama_customer || '')}</td><td class="wrap">${esc(c.keterangan || '')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Tidak ada complaint.</p>'}
+  <h3 style="font-size:15px;margin:16px 0 8px">Cost</h3>${cost.length ? `<div class="tbl-wrap"><table><thead><tr><th>Bulan</th><th>Batch</th><th class="num">Box</th><th class="num">Weekly / payroll</th><th class="num">Tunjangan</th><th class="num">Total cost</th></tr></thead><tbody>${cost.sort((a, b) => String(a.batch).localeCompare(String(b.batch), 'id', { numeric: true })).map(c => `<tr><td>${monthLabel(c.bulan)}</td><td>${esc(c.batch)}</td><td class="num">${num(c.total_box)}</td><td class="num">${rupiah(c.total_weekly)}</td><td class="num">${rupiah(Number(c.estafet) + Number(c.jarak) + Number(c.parkir) + Number(c.gedung) + Number(c.dll))}</td><td class="num"><b>${rupiah(c.total_cost)}</b></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Tidak ada data cost.</p>'}
+  <h3 style="font-size:15px;margin:16px 0 8px">SLA per sesi</h3><div class="tbl-wrap" style="max-height:280px;overflow:auto"><table><thead><tr><th>Tanggal</th><th>Batch</th><th>Sesi</th><th>Bisnis</th><th class="num">Box</th><th class="num">Terlambat</th><th class="num">Selesai</th></tr></thead><tbody>${sla.map(x => `<tr><td>${fmtShort(x.tanggal)}</td><td>${esc(x.batch || '')}</td><td>${esc(x.sesi)}</td><td>${esc(x.mode)}</td><td class="num">${x.qty_box}</td><td class="num">${x.box_terlambat ? `<span class="chip c-warn">${x.box_terlambat}</span>` : 0}</td><td class="num">${(x.max_time || '').slice(0, 5)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">Belum ada data.</td></tr>'}</tbody></table></div>`);
 }
 
 /* ---------- Akun kurir ---------- */
@@ -750,7 +943,7 @@ async function setSync() {
 }
 
 /* ---------- Router ---------- */
-const PAGES = { dashboard: pageDashboard, penilaian: pagePenilaian, laporan: pageLaporan, absensi: pageAbsensi, reimburse: pageReimburse, akun: pageAkun, pengaturan: pagePengaturan };
+const PAGES = { dashboard: pageDashboard, performa: pagePerforma, penilaian: pagePenilaian, laporan: pageLaporan, absensi: pageAbsensi, reimburse: pageReimburse, akun: pageAkun, pengaturan: pagePengaturan };
 function render() {
   stopCam(); clearInterval(absenSaya.t); clearInterval(setSync.t);
   const allowed = NAV.filter(n => n.id && n.ok());
@@ -765,17 +958,19 @@ $('#menuBtn').onclick = () => document.body.classList.add('nav-open');
 $('#scrim').onclick = () => document.body.classList.remove('nav-open');
 $('#logoutLink').onclick = e => { e.preventDefault(); HGAuth.logout(); };
 
+window.addEventListener('error', e => { const v = $('#view'); if (v && /Memuat/.test(v.textContent)) v.innerHTML = `<div class="card empty">Terjadi kesalahan: ${esc(e.message)}</div>`; });
 (async () => {
   const me = await HGAuth.guard('dlv-mgmt');
   ME = me.profile;
-  const pusat = !!(await q(sb.rpc('admin_pusat'))), dlv = ME.division_id === 'DLV', pj = ME.position_id;
+  let pusat = false;
+  try { pusat = !!(await q(sb.rpc('admin_pusat'))); } catch (e) { $('#view').innerHTML = `<div class="card empty">Gagal memeriksa hak akses: ${esc(e.message)}</div>`; return; }
+  const dlv = ME.division_id === 'DLV', pj = ME.position_id;
   R = { pusat, admin: pusat || (dlv && pj === 'admin'), manajer: pusat || (dlv && pj === 'manajer'), hrd: dlv && pj === 'hrd', korlap: dlv && pj === 'korlap' };
   R.staf = R.admin || R.manajer || R.hrd;
   $('#meBox').innerHTML = `<b>${esc(ME.nama)}</b>${esc(ME.positions ? ME.positions.nama : pj)}`;
   try { await loadAll(); } catch (e) { $('#view').innerHTML = `<div class="card empty">Gagal memuat data: ${esc(e.message)}</div>`; return; }
   render();
-})();
-
+})().catch(e => { $('#view').innerHTML = `<div class="card empty">Gagal memulai aplikasi: ${esc(e.message)}</div>`; });
 </script>
 </body>
 </html>
