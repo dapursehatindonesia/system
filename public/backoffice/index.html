@@ -382,7 +382,7 @@ function showPassword(title, nama, username, pw) {
   $('#pwCopy').onclick = () => navigator.clipboard.writeText(`Login Healthy Go\nAlamat: ${location.origin}\nLogin dengan: ${username}\nPassword: ${pw}`).then(() => toast('Data login disalin.'), () => toast('Gagal menyalin, catat manual.', true));
 }
 
-const NAV = [['akun', 'Akun'], ['matriks', 'Matriks akses'], ['pengecualian', 'Pengecualian'], ['master', 'Master data'], ['laporan', 'Laporan SDM'], ['riwayat', 'Riwayat aktivitas']];
+const NAV = [['akun', 'Akun'], ['impor', 'Import akun CSV'], ['matriks', 'Matriks akses'], ['pengecualian', 'Pengecualian'], ['master', 'Master data'], ['laporan', 'Laporan SDM'], ['riwayat', 'Riwayat aktivitas']];
 
 /* ---------- Akun ---------- */
 const AF = { q: '', divisi: '', jabatan: '', status: 'aktif' };
@@ -662,8 +662,150 @@ async function pageRiwayat(v) {
   bindDataTable(v, 'audit', () => pageRiwayat(v));
 }
 
+/* ---------- Import akun dari CSV ---------- */
+const IMP = { rows: [], defDiv: 'DLV', defBranch: '', hasil: null };
+const keyOf = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const KOLOM = {
+  nama: ['nama', 'name', 'namalengkap', 'namakaryawan', 'namakurir'], username: ['username', 'user'], email: ['email', 'surel'],
+  jabatan: ['jabatan', 'posisi', 'position', 'jabatanposisi', 'role'], divisi: ['divisi', 'division', 'dept', 'departemen'],
+  area: ['area'], branch: ['branch', 'cabang'], kontrak: ['kontrak', 'statuskaryawan', 'jeniskontrak', 'status']
+};
+function parseCSV(text) {
+  text = text.replace(/^\uFEFF/, '');
+  const first = text.split(/\r?\n/)[0] || '', cnt = c => (first.match(new RegExp('\\' + c, 'g')) || []).length;
+  const d = cnt('\t') > cnt(',') && cnt('\t') > cnt(';') ? '\t' : cnt(';') > cnt(',') ? ';' : ',';
+  const rows = []; let row = [], f = '', qt = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (qt) { if (ch === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else qt = false; } else f += ch; }
+    else if (ch === '"') qt = true;
+    else if (ch === d) { row.push(f); f = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+    else f += ch;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ''));
+}
+const kontrakOf = v => { const k = keyOf(v); return /^(fulltime|ft|full)$/.test(k) ? 'Full Time' : /^(parttime|pt|part)$/.test(k) ? 'Part Time' : null; };
+const posOf = v => { const k = keyOf(v); return ORG.positions.find(p => keyOf(p.id) === k || keyOf(p.nama) === k) || null; };
+const divOf = v => { const k = keyOf(v); return k ? ORG.divisions.find(d => keyOf(d.id) === k || keyOf(d.nama) === k) || null : null; };
+const userFrom = nama => normName(nama).replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 36) || 'user';
+
+async function pageImpor(v) {
+  const [br, ar] = await Promise.all([q(sb.from('dlv_branches').select('*').order('nama')), q(sb.from('dlv_areas').select('*').order('nama'))]);
+  IMP.branches = br; IMP.areas = ar;
+  v.innerHTML = `<div class="card"><h2>Import akun dari CSV</h2>
+    <p class="sub">Buat banyak akun sekaligus dari file CSV (Excel/Google Sheets → <i>Download / Save as → CSV</i>). Kolom dikenali dari judulnya: <b>Nama</b> dan <b>Jabatan</b> wajib; <b>Divisi, Area, Branch, Kontrak, Username, Email</b> opsional. Username dibuat otomatis dari nama kalau kosong. Area & branch yang belum ada dibuat otomatis, dan kurir langsung ditugaskan ke areanya.</p>
+    <div class="row">
+      <label class="f grow"><span>File CSV</span><input type="file" id="impFile" accept=".csv,text/csv,text/plain"></label>
+      <label class="f"><span>Divisi default (kalau kolom Divisi kosong)</span><select id="impDiv">${ORG.divisions.map(d => opt(d.id, d.nama, IMP.defDiv)).join('')}</select></label>
+      <label class="f"><span>Branch default (untuk area baru tanpa branch)</span><select id="impBr"><option value="">—</option>${br.map(b => opt(b.nama, b.nama, IMP.defBranch)).join('')}</select></label>
+      <button class="btn-soft" id="impTpl">Unduh contoh CSV</button>
+    </div></div><div id="impOut"></div>`;
+  $('#impTpl').onclick = () => {
+    const csv = 'Nama,Jabatan,Divisi,Area,Branch,Kontrak,Username,Email\nAde Ferdiansyah,Kurir,Delivery,BGR,CK Bogor,Full Time,,\nRahmat Hidayat,Korlap,Delivery,,,Full Time,rahmat.korlap,\nNadia Putri,Admin,Delivery,,,Full Time,,nadia@contoh.com\n';
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'contoh-import-akun.csv'; a.click();
+  };
+  $('#impDiv').onchange = e => { IMP.defDiv = e.target.value; if (IMP.raw) siapkan(); };
+  $('#impBr').onchange = e => { IMP.defBranch = e.target.value; if (IMP.raw) siapkan(); };
+  $('#impFile').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    if (f.size > 5e6) return toast('File terlalu besar (maks 5 MB).', true);
+    IMP.raw = parseCSV(await f.text()); IMP.hasil = null; siapkan();
+  };
+  if (IMP.raw) siapkan();
+}
+function siapkan() {
+  const out = $('#impOut'), raw = IMP.raw;
+  if (!raw || raw.length < 2) { out.innerHTML = '<div class="card empty">File kosong atau hanya berisi judul kolom.</div>'; return; }
+  const head = raw[0].map(keyOf), idx = {};
+  Object.entries(KOLOM).forEach(([k, al]) => { const i = head.findIndex(h => al.includes(h)); if (i >= 0) idx[k] = i; });
+  if (!('nama' in idx) || !('jabatan' in idx)) { out.innerHTML = `<div class="card empty">Kolom <b>Nama</b> dan <b>Jabatan</b> tidak ditemukan. Judul kolom yang terbaca: ${raw[0].map(esc).join(', ')}</div>`; return; }
+  const ada = new Set(ORG.profiles.map(p => normName(p.nama))), adaUser = new Set(ORG.profiles.map(p => p.username)), diFile = new Set(), userFile = new Set();
+  const areaAda = new Map(IMP.areas.map(a => [normName(a.nama), a])), brAda = new Map(IMP.branches.map(b => [normName(b.nama), b]));
+  IMP.rows = raw.slice(1).map((r, i) => {
+    const g = k => k in idx ? String(r[idx[k]] ?? '').trim().replace(/\s+/g, ' ') : '';
+    const o = { baris: i + 2, nama: g('nama'), jabatanTeks: g('jabatan'), divisiTeks: g('divisi'), area: g('area'), branch: g('branch'), kontrak: kontrakOf(g('kontrak')), email: g('email').toLowerCase() || null, username: g('username').toLowerCase(), err: '', info: [] };
+    const p = posOf(o.jabatanTeks); o.position_id = p ? p.id : null;
+    const d = p && p.cakupan === 'semua' ? null : (divOf(o.divisiTeks) || div(IMP.defDiv)); o.division_id = d ? d.id : null;
+    if (!o.nama) o.err = 'Nama kosong';
+    else if (ada.has(normName(o.nama))) o.err = 'Sudah ada di sistem (dilewati)';
+    else if (diFile.has(normName(o.nama))) o.err = 'Nama dobel di file';
+    else if (!p) o.err = `Jabatan "${o.jabatanTeks}" tidak dikenal`;
+    else if (p.cakupan === 'divisi' && !o.division_id) o.err = `Divisi "${o.divisiTeks}" tidak dikenal`;
+    else if (p.cakupan === 'divisi' && !posDivs(p.id).includes(o.division_id)) o.err = `Jabatan ${p.nama} tidak dipakai di divisi ${div(o.division_id).nama}`;
+    else if (o.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(o.email)) o.err = 'Format email salah';
+    if (!o.err) {
+      diFile.add(normName(o.nama));
+      if (!/^[a-z0-9._-]{4,40}$/.test(o.username)) { if (o.username) o.info.push('username diganti otomatis'); o.username = userFrom(o.nama); }
+      let u = o.username.length < 4 ? (o.username + '.hg').slice(0, 40) : o.username, n = 2; const base = u;
+      while (adaUser.has(u) || userFile.has(u)) u = (base.slice(0, 36) + '.' + n++);
+      o.username = u; userFile.add(u);
+      if (o.position_id === 'kurir' && o.division_id === 'DLV') {
+        if (!o.area) o.info.push('tanpa area');
+        else if (!areaAda.has(normName(o.area))) { o.info.push('area baru'); if (!o.branch && !IMP.defBranch) o.err = 'Area baru butuh Branch (isi kolom Branch atau pilih Branch default)'; else if (!brAda.has(normName(o.branch || IMP.defBranch))) o.info.push('branch baru'); }
+      }
+    }
+    return o;
+  });
+  const ok = IMP.rows.filter(r => !r.err), gagal = IMP.rows.filter(r => r.err);
+  const cols = [
+    { key: 'baris', label: 'Baris', num: true }, { key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama || '—')}</b>` },
+    { key: 'username', label: 'Username', render: r => r.err ? '—' : esc(r.username) },
+    { key: 'jabatanTeks', label: 'Jabatan' }, { key: 'division_id', label: 'Divisi', render: r => r.division_id ? esc(div(r.division_id).nama) : (r.position_id && pos(r.position_id).cakupan === 'semua' ? 'Semua' : '—') },
+    { key: 'area', label: 'Area', render: r => esc(r.area || '—') }, { key: 'kontrak', label: 'Kontrak', render: r => esc(r.kontrak || '—') },
+    { key: 'status', label: 'Status', sort: r => r.err ? 0 : 1, render: r => r.err ? `<span class="chip ${/Sudah ada/.test(r.err) ? 'c-mute' : 'c-bad'}">${esc(r.err)}</span>` : `<span class="chip c-ok">Siap</span>${r.info.length ? ' <span class="small muted">' + esc(r.info.join(', ')) + '</span>' : ''}` }
+  ];
+  out.innerHTML = `<div class="kpis"><div class="kpi lead"><span>Siap diimpor</span><b>${ok.length}</b></div><div class="kpi"><span>Dilewati / bermasalah</span><b>${gagal.length}</b><small>lihat kolom Status</small></div><div class="kpi"><span>Area baru</span><b>${uniqArr(ok.filter(r => r.info.includes('area baru')).map(r => normName(r.area))).length}</b></div></div>
+  <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Pratinjau</h2><p class="sub" style="margin:0">Periksa dulu. Hanya baris berstatus <b>Siap</b> yang dibuat. Baris lain bisa diperbaiki di file lalu diunggah ulang.</p></div>
+  <button class="btn-primary" id="impGo" ${ok.length ? '' : 'disabled'}>Buat ${ok.length} akun</button></div>
+  ${dataTable('imp', cols, IMP.rows, { sortKey: 'status', maxHeight: 520 })}</div><div id="impRes"></div>`;
+  bindDataTable(out, 'imp', siapkan);
+  $('#impGo').onclick = () => { if (confirm(`Buat ${ok.length} akun sekarang? Proses bisa memakan beberapa menit; jangan tutup halaman.`)) jalankanImpor(ok); };
+}
+const uniqArr = a => [...new Set(a)];
+async function jalankanImpor(rows) {
+  const btn = $('#impGo'); btn.disabled = true;
+  const prog = t => { btn.textContent = t; };
+  try {
+    // 1. Branch & area baru
+    const brMap = new Map(IMP.branches.map(b => [normName(b.nama), b.id]));
+    const needBr = uniqArr(rows.filter(r => r.info.includes('area baru')).map(r => r.branch || IMP.defBranch).filter(b => b && !brMap.has(normName(b))));
+    for (const b of needBr) { const x = await q(sb.from('dlv_branches').insert({ nama: b }).select('id').single()); brMap.set(normName(b), x.id); }
+    const arMap = new Map(IMP.areas.map(a => [normName(a.nama), a.id])), seen = new Set();
+    for (const r of rows.filter(r => r.info.includes('area baru'))) {
+      const k = normName(r.area); if (seen.has(k) || arMap.has(k)) continue; seen.add(k);
+      const x = await q(sb.from('dlv_areas').insert({ nama: r.area, branch_id: brMap.get(normName(r.branch || IMP.defBranch)) }).select('id').single()); arMap.set(k, x.id);
+    }
+    // 2. Akun (25 per panggilan)
+    const hasil = [];
+    for (let i = 0; i < rows.length; i += 25) {
+      prog(`Membuat akun ${Math.min(i + 25, rows.length)} / ${rows.length}…`);
+      const part = rows.slice(i, i + 25);
+      const r = await fnAkun({ action: 'create_bulk', rows: part.map(o => ({ nama: o.nama, username: o.username, email: o.email || undefined, position_id: o.position_id, division_id: o.division_id, kontrak: o.kontrak })) });
+      r.hasil.forEach((h, j) => hasil.push({ ...part[j], ...h }));
+    }
+    // 3. Penugasan area kurir
+    prog('Menugaskan kurir ke area…');
+    const tugas = hasil.filter(h => h.ok && h.position_id === 'kurir' && h.area && arMap.has(normName(h.area))).map(h => ({ profile_id: h.id, area_id: arMap.get(normName(h.area)), mulai: TODAY }));
+    for (let i = 0; i < tugas.length; i += 500) await q(sb.from('dlv_penugasan').insert(tugas.slice(i, i + 500)));
+    IMP.hasil = hasil; await loadAll();
+    tampilHasil();
+  } catch (e) { toast('Impor berhenti: ' + e.message, true); btn.disabled = false; btn.textContent = 'Coba lagi'; }
+}
+function tampilHasil() {
+  const h = IMP.hasil, ok = h.filter(x => x.ok), bad = h.filter(x => !x.ok);
+  $('#impRes').innerHTML = `<div class="card"><h2>Hasil impor</h2><div class="kpis"><div class="kpi lead"><span>Berhasil dibuat</span><b>${ok.length}</b></div><div class="kpi"><span>Gagal</span><b>${bad.length}</b></div></div>
+  <div class="warnbox" style="margin-bottom:12px"><b>Unduh daftar password sekarang.</b> Password sementara hanya ditampilkan sekali dan tidak bisa dilihat lagi (bisa di-reset nanti).</div>
+  <div class="actions" style="justify-content:flex-start"><button class="btn-primary" id="impXls">Unduh Excel username & password</button></div>
+  ${bad.length ? `<h3 style="font-size:15px;margin:14px 0 8px">Yang gagal</h3><div class="tbl-wrap"><table><thead><tr><th>Baris</th><th>Nama</th><th>Alasan</th></tr></thead><tbody>${bad.map(b => `<tr><td>${b.baris}</td><td>${esc(b.nama)}</td><td class="wrap">${esc(b.error)}</td></tr>`).join('')}</tbody></table></div>` : ''}</div>`;
+  $('#impXls').onclick = () => XLSX_LITE.download(`Akun baru ${TODAY}.xlsx`, [{ name: 'Akun baru', columns: [{ label: 'Nama', width: 26 }, { label: 'Jabatan', width: 14 }, { label: 'Divisi', width: 12 }, { label: 'Area', width: 14 }, { label: 'Username', width: 24 }, { label: 'Email', width: 26 }, { label: 'Password sementara', width: 20 }, { label: 'Status', width: 30 }],
+    rows: h.map(x => [x.nama, x.jabatanTeks, x.division_id ? div(x.division_id).nama : 'Semua', x.area || '', x.ok ? x.username : '', x.email || '', x.ok ? x.password_sementara : '', x.ok ? 'Berhasil' : 'Gagal: ' + x.error]) },
+    { name: 'Info', filter: false, freeze: false, columns: [{ label: 'Keterangan', width: 22 }, { label: 'Isi', width: 60 }], rows: [['Alamat login', location.origin], ['Cara login', 'Username (atau email kalau diisi) + password sementara'], ['Setelah login', 'Minta setiap orang mengganti password lewat menu Ganti password'], ['Dibuat oleh', ME.nama], ['Tanggal', fmtDate(new Date())]] }]);
+}
+
 /* ---------- Router ---------- */
-const PAGES = { akun: pageAkun, matriks: pageMatriks, pengecualian: pagePengecualian, master: pageMaster, laporan: pageLaporan, riwayat: pageRiwayat };
+const PAGES = { akun: pageAkun, impor: pageImpor, matriks: pageMatriks, pengecualian: pagePengecualian, master: pageMaster, laporan: pageLaporan, riwayat: pageRiwayat };
 function render() {
   let id = location.hash.slice(1); if (!PAGES[id]) id = 'akun';
   $('#nav').innerHTML = NAV.map(([k, l]) => `<a href="#${k}" class="${k === id ? 'active' : ''}" ${k === id ? 'aria-current="page"' : ''}>${l}</a>`).join('');
