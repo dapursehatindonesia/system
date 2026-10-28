@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#04331f">
 <title>Kurir · Healthy Go</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/shared/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/shared/favicon.png">
+<link rel="apple-touch-icon" href="/shared/favicon.png">
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -270,7 +273,7 @@ function updAbsen() {
 
 /* ---------- Reimburse ---------- */
 let RTab = 'Waiting';
-const RTYPES = { Estafet: { label: 'Estafet', hint: 'Delivering boxes to another hub or point' }, Parkir: { label: 'Parking', hint: 'Parking fee during delivery' }, Jarak: { label: 'Distance', hint: 'Long-distance delivery' } };
+const RTYPES = { Estafet: { label: 'Estafet', hint: 'Delivering boxes to another hub or point' }, Parkir: { label: 'Parkir', hint: 'Parking fee during delivery' }, Jarak: { label: 'Jarak', hint: 'Long-distance delivery' } };
 const rDetail = r => r.tipe === 'Estafet' ? 'To ' + r.tujuan : r.tipe === 'Jarak' ? Number(r.jarak_km).toLocaleString('id-ID') + ' km · ' + r.cust_terjauh : 'Parking ticket';
 async function pageReimburse(v) {
   v.innerHTML = '<h1>Reimbursement</h1><div class="card empty">Loading…</div>';
@@ -346,7 +349,8 @@ function formR(tipe, all, v) {
 /* ---------- Performa (mingguan dari sheet Cost; detail complaint per tanggal) ----------
    Data yang tampil = baris dengan Nama + Branch sama dengan akun ini (dijaga RLS). */
 const PF = { bulan: monthKey(TODAY), tab: 'mingguan' };
-const toSec = t => { if (!t) return null; const [h, m, s] = String(t).split(':').map(Number); return h * 3600 + m * 60 + (s || 0); };
+// 00:00:00 = tidak ada pengiriman → tidak ikut dirata-rata
+const toSec = t => { if (!t) return null; const [h, m, s] = String(t).split(':').map(Number); const v = h * 3600 + m * 60 + (s || 0); return v > 0 ? v : null; };
 const fromSec = s => s == null ? '—' : pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60));
 async function pagePerforma(v) {
   v.innerHTML = '<h1>Performa saya</h1><div class="card empty">Memuat…</div>';
@@ -378,7 +382,7 @@ async function pagePerforma(v) {
     <div class="stat"><span>Total box</span><b>${num(box)}</b><small>HG ${num(hg)} · BK ${num(bk)} · GT ${num(gt)}</small></div>
     <div class="stat"><span>Late delivery</span><b>${num(late)}</b><small>${fmtPct(box ? late / box * 100 : null)} dari box</small></div>
     <div class="stat"><span>Complaint</span><b>${num(nComp)}</b><small>${fmtPct(box ? nComp / box * 100 : null, 2)} dari box</small></div>
-    <div class="stat"><span>Rata-rata max time</span><b>${fromSec(mAvg)}</b><small>jam selesai</small></div></div>
+    <div class="stat"><span>Avg delivery time</span><b>${fromSec(mAvg)}</b><small>jam selesai</small></div></div>
   <div class="tabs" role="tablist">${[['mingguan', 'Per minggu'], ['complaint', 'Detail complaint']].map(([k, l]) => `<button role="tab" aria-selected="${PF.tab === k}" data-t="${k}">${l}</button>`).join('')}</div>
   <div class="card" id="pfOut"></div><p class="small muted" style="text-align:center">Data dari spreadsheet, diperbarui setiap hari pukul 01.00.</p>`;
   $('#pfB').onchange = e => { PF.bulan = e.target.value; pagePerforma(v); };
@@ -387,7 +391,7 @@ async function pagePerforma(v) {
   const out = $('#pfOut');
   if (PF.tab === 'mingguan') out.innerHTML = `<h2>Per minggu</h2><div class="list">${costs.map(c => `<div class="li click" data-c="${c.id}" tabindex="0"><div><b>${esc(lbl(c))}</b><small>${isPay(c) ? 'Payroll' : num(c.total_box) + ' box · late ' + num(c.late_delivery) + ' · complaint ' + num(c.complaint)}${c.area ? ' · ' + esc(c.area) : ''}</small></div><div class="r"><b>${rupiah(c.total_weekly)}</b></div></div>`).join('') || '<div class="empty">Belum ada rekap bulan ini.</div>'}</div>`;
   if (PF.tab === 'complaint') out.innerHTML = `<h2>Detail complaint</h2><div class="list">${comp.map(c => `<div class="li" style="display:block"><div class="row" style="justify-content:space-between"><b>${esc(c.tipe || 'Complaint')}</b><span class="small muted">${fmtDate(c.tanggal)}</span></div><small style="display:block;margin-top:2px">${esc(c.nama_customer || '')}${c.sesi ? ' · ' + esc(c.sesi) : ''}</small><div class="small" style="margin-top:4px">${esc(c.keterangan || '')}</div></div>`).join('') || '<div class="empty">Tidak ada complaint. Pertahankan!</div>'}</div>`;
-  out.querySelectorAll('[data-c]').forEach(x => x.onclick = () => { const c = costs.find(y => String(y.id) === x.dataset.c); openSheet(esc(lbl(c)), `<dl class="kv"><dt>Area · branch</dt><dd>${esc(c.area || '—')} · ${esc(c.branch || '—')}</dd><dt>Total box</dt><dd>${num(c.total_box)} (HG ${num(c.box_hg)} · BK ${num(c.box_bk)} · GT ${num(c.box_gt)})</dd><dt>Late delivery</dt><dd>${num(c.late_delivery)}</dd><dt>Rata-rata max time</dt><dd>${c.max_time ? c.max_time.slice(0, 5) : '—'}</dd><dt>Complaint</dt><dd>${num(c.complaint)}</dd><dt>Estafet</dt><dd>${rupiah(c.estafet)}</dd><dt>Jarak</dt><dd>${rupiah(c.jarak)}</dd><dt>Parkir</dt><dd>${rupiah(c.parkir)}</dd><dt>Gedung</dt><dd>${rupiah(c.gedung)}</dd><dt>Lain-lain</dt><dd>${rupiah(c.dll)}</dd><dt>Total Weekly</dt><dd style="font-size:17px">${rupiah(c.total_weekly)}</dd></dl>`); });
+  out.querySelectorAll('[data-c]').forEach(x => x.onclick = () => { const c = costs.find(y => String(y.id) === x.dataset.c); openSheet(esc(lbl(c)), `<dl class="kv"><dt>Area · branch</dt><dd>${esc(c.area || '—')} · ${esc(c.branch || '—')}</dd><dt>Total box</dt><dd>${num(c.total_box)} (HG ${num(c.box_hg)} · BK ${num(c.box_bk)} · GT ${num(c.box_gt)})</dd><dt>Late delivery</dt><dd>${num(c.late_delivery)}</dd><dt>Avg delivery time</dt><dd>${c.max_time ? c.max_time.slice(0, 5) : '—'}</dd><dt>Complaint</dt><dd>${num(c.complaint)}</dd><dt>Estafet</dt><dd>${rupiah(c.estafet)}</dd><dt>Jarak</dt><dd>${rupiah(c.jarak)}</dd><dt>Parkir</dt><dd>${rupiah(c.parkir)}</dd><dt>Gedung</dt><dd>${rupiah(c.gedung)}</dd><dt>Lain-lain</dt><dd>${rupiah(c.dll)}</dd><dt>Total Weekly</dt><dd style="font-size:17px">${rupiah(c.total_weekly)}</dd></dl>`); });
 }
 
 /* ---------- Akun (ganti password, keluar) ---------- */

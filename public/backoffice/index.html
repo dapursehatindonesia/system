@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Backoffice · Healthy Go</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/shared/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/shared/favicon.png">
+<link rel="apple-touch-icon" href="/shared/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -188,13 +191,15 @@ input.big{width:20px;height:20px;accent-color:var(--hg-500);cursor:pointer}
 code{font-size:13px;background:var(--hg-50);padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
 .brand-mark.bo{background:#fff;color:var(--hg-deep)}
 body::before{background:var(--hg-deep)}
+.pager{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px}
+.brand-logo{height:34px;width:auto;display:block}
 [hidden]{display:none!important}
 </style>
 </head>
 <body>
 <div class="shell">
   <aside class="side" id="side" aria-label="Menu utama">
-    <div class="brand"><div class="brand-mark bo">BO</div><div><b>Backoffice</b><small>Healthy Go · semua divisi</small></div></div>
+    <div class="brand"><img class="brand-logo" src="/shared/logo-putih.png" alt="Healthy Go"><div><b>Backoffice</b><small>All divisi</small></div></div>
     <nav class="nav" id="nav"></nav>
     <div class="side-foot"><div class="me" id="meBox"></div><a href="/?portal=1">Kembali ke portal</a><a href="#" id="logoutLink">Keluar</a></div>
   </aside>
@@ -210,26 +215,36 @@ body::before{background:var(--hg-deep)}
 /* Tabel profesional: header beku, scroll, sort lewat panah di kanan judul kolom */
 const TBL = {};
 function dataTable(id, cols, rows, opt = {}) {
-  const st = TBL[id] || (TBL[id] = { key: opt.sortKey || cols[0].key, dir: opt.sortDir || 'asc' });
+  const st = TBL[id] || (TBL[id] = { key: opt.sortKey || cols[0].key, dir: opt.sortDir || 'asc', page: 0 });
   const col = cols.find(c => c.key === st.key) || cols[0];
   const val = r => col.sort ? col.sort(r) : r[col.key];
   const sorted = [...rows].sort((a, b) => {
     const x = val(a), y = val(b);
-    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;   // kosong selalu di bawah
-    const c = typeof x === 'string' ? x.localeCompare(y, 'id') : x - y;
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+    const c = typeof x === 'string' ? x.localeCompare(y, 'id', { numeric: true }) : x - y;
     return st.dir === 'asc' ? c : -c;
   });
+  const size = opt.pageSize || 0, pages = size ? Math.max(1, Math.ceil(sorted.length / size)) : 1;
+  if ((st.page || 0) >= pages) st.page = pages - 1; if (!st.page || st.page < 0) st.page = st.page > 0 ? st.page : 0;
+  const shown = size ? sorted.slice(st.page * size, st.page * size + size) : sorted;
   const arrow = c => st.key !== c.key ? '<span class="arr idle">▲▼</span>' : `<span class="arr">${st.dir === 'asc' ? '▲' : '▼'}</span>`;
+  const pager = size && sorted.length > size ? `<div class="pager" data-pg="${id}"><span class="small muted">${(st.page * size + 1).toLocaleString('id-ID')}–${Math.min(sorted.length, st.page * size + size).toLocaleString('id-ID')} dari ${sorted.length.toLocaleString('id-ID')}</span><span class="row" style="gap:6px"><button class="btn-sm" data-pgo="first" ${st.page ? '' : 'disabled'}>«</button><button class="btn-sm" data-pgo="prev" ${st.page ? '' : 'disabled'}>‹ Sebelumnya</button><span class="small">Hal ${st.page + 1} / ${pages}</span><button class="btn-sm" data-pgo="next" ${st.page < pages - 1 ? '' : 'disabled'}>Berikutnya ›</button><button class="btn-sm" data-pgo="last" ${st.page < pages - 1 ? '' : 'disabled'}>»</button></span></div>` : '';
+  st.pages = pages;
   return `<div class="tbl-wrap tbl-scroll" style="max-height:${opt.maxHeight || 520}px"><table class="dt${opt.freezeFirst ? ' freeze' : ''}" data-dt="${id}">
     <thead><tr>${cols.map(c => `<th class="${c.num ? 'num' : ''}" aria-sort="${st.key === c.key ? (st.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="th-sort" data-sort="${c.key}" title="Urutkan ${esc(c.label)}"><span>${c.label}</span>${arrow(c)}</button></th>`).join('')}</tr></thead>
-    <tbody>${sorted.map(r => `<tr ${opt.rowAttr ? opt.rowAttr(r) : ''}>${cols.map(c => `<td class="${c.num ? 'num' : ''}${c.wrap ? ' wrap' : ''}">${c.render ? c.render(r) : esc(r[c.key])}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty">${opt.empty || 'Tidak ada data.'}</td></tr>`}</tbody>
-  </table></div>`;
+    <tbody>${shown.map(r => `<tr ${opt.rowAttr ? opt.rowAttr(r) : ''}>${cols.map(c => `<td class="${c.num ? 'num' : ''}${c.wrap ? ' wrap' : ''}">${c.render ? c.render(r) : esc(r[c.key])}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty">${opt.empty || 'Tidak ada data.'}</td></tr>`}</tbody>
+  </table></div>${pager}`;
 }
 function bindDataTable(root, id, redraw) {
   root.querySelectorAll(`table[data-dt="${id}"] [data-sort]`).forEach(b => b.onclick = () => {
     const st = TBL[id];
     if (st.key === b.dataset.sort) st.dir = st.dir === 'asc' ? 'desc' : 'asc';
     else { st.key = b.dataset.sort; st.dir = b.closest('th').classList.contains('num') ? 'desc' : 'asc'; }
+    st.page = 0; redraw();
+  });
+  root.querySelectorAll(`[data-pg="${id}"] [data-pgo]`).forEach(b => b.onclick = () => {
+    const st = TBL[id], g = b.dataset.pgo;
+    st.page = g === 'first' ? 0 : g === 'last' ? st.pages - 1 : g === 'prev' ? Math.max(0, st.page - 1) : Math.min(st.pages - 1, st.page + 1);
     redraw();
   });
 }
@@ -314,10 +329,11 @@ const div = id => ORG.divisions.find(d => d.id === id) || {};
 const app = id => ORG.apps.find(a => a.id === id) || {};
 const prof = id => ORG.profiles.find(p => p.id === id) || {};
 const posDivs = id => ORG.posDiv.filter(x => x.position_id === id).map(x => x.division_id);
-const divLabel = id => id ? esc(div(id).nama || id) : '<span class="chip c-info">Semua divisi</span>';
+const divLabel = id => id ? esc(div(id).nama || id) : '<span class="chip c-info">All divisi</span>';
 
 /* ---------- Data ---------- */
 async function q(p) { const { data, error } = await p; if (error) throw new Error(error.message); return data; }
+async function fetchAll(make) { let out = [], from = 0; for (;;) { const { data, error } = await make().range(from, from + 999); if (error) throw new Error(error.message); out = out.concat(data); if (data.length < 1000 || from > 300000) break; from += 1000; } return out; }
 async function loadAll() {
   const [d, p, pd, a, ra, rl, ex, pr] = await Promise.all([
     q(sb.from('divisions').select('*').order('nama')),
@@ -326,8 +342,8 @@ async function loadAll() {
     q(sb.from('apps').select('*').order('urutan')),
     q(sb.from('role_app_access').select('*')),
     q(sb.from('role_landing').select('*')),
-    q(sb.from('user_app_exceptions').select('*').order('created_at', { ascending: false })),
-    q(sb.from('profiles').select('id, nama, username, email, division_id, position_id, kontrak, aktif, created_at').order('nama'))
+    fetchAll(() => sb.from('user_app_exceptions').select('*').order('created_at', { ascending: false })),
+    fetchAll(() => sb.from('profiles').select('id, nama, username, email, division_id, position_id, kontrak, aktif, created_at').order('id'))
   ]);
   Object.assign(ORG, { divisions: d, positions: p, posDiv: pd, apps: a, access: ra, landing: rl, exceptions: ex, profiles: pr });
 }
@@ -351,7 +367,7 @@ function cekAkses(u, appId) {
   if (!a.aktif) return { ok: false, alasan: 'Aplikasi nonaktif' };
   const ex = ORG.exceptions.find(e => e.profile_id === u.id && e.app_id === appId);
   if (ex) return { ok: ex.izinkan, alasan: (ex.izinkan ? 'Pengecualian: diizinkan' : 'Pengecualian: diblokir') + ' (' + ex.alasan + ')' };
-  if (pos(u.position_id).cakupan === 'semua') return { ok: true, alasan: 'Jabatan dengan cakupan semua divisi' };
+  if (pos(u.position_id).cakupan === 'semua') return { ok: true, alasan: 'Jabatan dengan cakupan all divisi' };
   if (ORG.access.some(x => x.division_id === u.division_id && x.position_id === u.position_id && x.app_id === appId)) return { ok: true, alasan: 'Matriks: ' + (div(u.division_id).nama || '') + ' · ' + (pos(u.position_id).nama || '') };
   return { ok: false, alasan: 'Tidak ada di matriks akses' };
 }
@@ -389,16 +405,17 @@ const AF = { q: '', divisi: '', jabatan: '', status: 'aktif' };
 function pageAkun(v) {
   v.innerHTML = `<div class="card"><div class="row">
     <label class="f grow"><span>Cari</span><input id="aQ" value="${esc(AF.q)}" placeholder="Nama, username, atau email"></label>
-    <label class="f"><span>Divisi</span><select id="aDiv"><option value="">Semua divisi</option>${ORG.divisions.map(d => opt(d.id, d.nama, AF.divisi)).join('')}<option value="-" ${AF.divisi === '-' ? 'selected' : ''}>Lintas divisi</option></select></label>
+    <label class="f"><span>Divisi</span><select id="aDiv"><option value="">All divisi</option>${ORG.divisions.map(d => opt(d.id, d.nama, AF.divisi)).join('')}<option value="-" ${AF.divisi === '-' ? 'selected' : ''}>All divisi</option></select></label>
     <label class="f"><span>Jabatan</span><select id="aJab"><option value="">Semua jabatan</option>${ORG.positions.map(j => opt(j.id, j.nama, AF.jabatan)).join('')}</select></label>
     <label class="f"><span>Status</span><select id="aSt">${[['aktif', 'Aktif'], ['nonaktif', 'Nonaktif'], ['', 'Semua']].map(([k, l]) => opt(k, l, AF.status)).join('')}</select></label>
-    <button class="btn-primary" id="aAdd">Tambah akun</button></div></div>
+    <button class="btn-soft" id="aXls">Unduh Excel</button><button class="btn-primary" id="aAdd">Tambah akun</button></div></div>
   <div class="card" id="aOut"></div>`;
   const draw = () => {
+    const f = [$('#aQ').value, $('#aDiv').value, $('#aJab').value, $('#aSt').value].join('|'); if (AF.f !== f && TBL.akun) TBL.akun.page = 0; AF.f = f;
     AF.q = $('#aQ').value; AF.divisi = $('#aDiv').value; AF.jabatan = $('#aJab').value; AF.status = $('#aSt').value;
     const qq = normName(AF.q);
     const rows = ORG.profiles.filter(p => (!AF.divisi || (AF.divisi === '-' ? !p.division_id : p.division_id === AF.divisi)) && (!AF.jabatan || p.position_id === AF.jabatan) && (!AF.status || (AF.status === 'aktif') === p.aktif) && (!qq || normName(p.nama).includes(qq) || p.username.includes(qq) || (p.email || '').includes(qq)))
-      .map(p => ({ ...p, divNama: p.division_id ? div(p.division_id).nama : 'Semua divisi', jabNama: pos(p.position_id).nama || p.position_id, apps: appsUser(p), landing: landingUser(p) }));
+      .map(p => ({ ...p, divNama: p.division_id ? div(p.division_id).nama : 'All divisi', jabNama: pos(p.position_id).nama || p.position_id, apps: appsUser(p), landing: landingUser(p) }));
     const cols = [
       { key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama)}</b>${r.id === ME.id ? ' <span class="chip c-info">Anda</span>' : ''}<br><span class="small muted">${esc(r.username)}${r.email ? ' · ' + esc(r.email) : ''}</span>` },
       { key: 'divNama', label: 'Divisi', render: r => divLabel(r.division_id) },
@@ -408,7 +425,8 @@ function pageAkun(v) {
       { key: 'aktif', label: 'Status', sort: r => r.aktif ? 1 : 0, render: r => r.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>' },
       { key: 'aksi', label: '', sort: () => 0, render: r => `<span class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn-soft btn-sm" data-edit="${r.id}">Ubah</button><button class="btn-sm" data-cek="${r.id}">Cek akses</button><button class="btn-sm" data-reset="${r.id}">Reset password</button>${r.id === ME.id ? '' : `<button class="btn-sm ${r.aktif ? 'btn-danger' : ''}" data-akt="${r.id}">${r.aktif ? 'Nonaktifkan' : 'Aktifkan'}</button>`}</span>` }
     ];
-    $('#aOut').innerHTML = `<p class="sub">${rows.length} akun. Chip hijau = aplikasi yang langsung dibuka setelah login.</p>` + dataTable('akun', cols, rows, { sortKey: 'nama', freezeFirst: true, maxHeight: 600, empty: 'Tidak ada akun yang cocok.' });
+    $('#aOut').innerHTML = `<p class="sub">${rows.length} akun. Chip hijau = aplikasi yang langsung dibuka setelah login.</p>` + dataTable('akun', cols, rows, { sortKey: 'nama', freezeFirst: true, maxHeight: 640, pageSize: 50, empty: 'Tidak ada akun yang cocok.' });
+    AF.rows = rows;
     bindDataTable($('#aOut'), 'akun', draw);
     $('#aOut').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => akunForm(b.dataset.edit, draw));
     $('#aOut').querySelectorAll('[data-cek]').forEach(b => b.onclick = () => cekAksesModal(b.dataset.cek));
@@ -424,7 +442,12 @@ function pageAkun(v) {
     });
   };
   $('#aQ').oninput = draw; ['#aDiv', '#aJab', '#aSt'].forEach(s => $(s).onchange = draw);
-  $('#aAdd').onclick = () => akunForm(null, draw); draw();
+  $('#aAdd').onclick = () => akunForm(null, draw);
+  $('#aXls').onclick = () => { const rows = AF.rows || []; if (!rows.length) return toast('Tidak ada data.', true);
+    XLSX_LITE.download(`Data akun ${TODAY}.xlsx`, [{ name: 'Akun', columns: [{ label: 'Nama', width: 26 }, { label: 'Username', width: 22 }, { label: 'Email', width: 26 }, { label: 'Divisi', width: 14 }, { label: 'Jabatan', width: 16 }, { label: 'Kontrak', width: 11 }, { label: 'Status', width: 10 }, { label: 'Akses aplikasi', width: 40 }],
+      rows: rows.map(r => [r.nama, r.username, r.email || '', r.divNama, r.jabNama, r.kontrak || '', r.aktif ? 'Aktif' : 'Nonaktif', r.apps.map(a => a.nama).join(', ')]) }]);
+    toast('Excel diunduh: ' + rows.length + ' akun.'); };
+  draw();
 }
 function akunForm(id, after) {
   const p = id ? prof(id) : { nama: '', username: '', email: '', division_id: '', position_id: '', kontrak: '' };
@@ -432,7 +455,7 @@ function akunForm(id, after) {
   <div class="form-grid">
     <label class="f"><span>Nama lengkap</span><input id="fNama" value="${esc(p.nama)}" placeholder="Sama persis dengan di spreadsheet"></label>
     <label class="f"><span>Username</span><input id="fUser" value="${esc(p.username)}" autocapitalize="none" spellcheck="false"></label>
-    <label class="f"><span>Jabatan</span><select id="fJab"><option value="">Pilih jabatan</option>${ORG.positions.map(j => opt(j.id, j.nama + (j.cakupan === 'semua' ? ' (semua divisi)' : ''), p.position_id)).join('')}</select></label>
+    <label class="f"><span>Jabatan</span><select id="fJab"><option value="">Pilih jabatan</option>${ORG.positions.map(j => opt(j.id, j.nama + (j.cakupan === 'semua' ? ' (all divisi)' : ''), p.position_id)).join('')}</select></label>
     <label class="f" id="fDivWrap"><span>Divisi</span><select id="fDiv"></select></label>
     <label class="f"><span>Kontrak</span><select id="fKon"><option value="">—</option>${['Full Time', 'Part Time'].map(k => opt(k, k, p.kontrak)).join('')}</select></label>
     <label class="f"><span>Email (opsional)</span><input id="fEmail" type="email" value="${esc(p.email || '')}" placeholder="Bisa dipakai untuk login"></label>
@@ -467,7 +490,7 @@ function akunForm(id, after) {
 }
 function cekAksesModal(id) {
   const p = prof(id), l = landingUser(p);
-  openModal(`${modalHead('Cek akses: ' + p.nama, `${p.division_id ? esc(div(p.division_id).nama) : 'Lintas divisi'} · ${esc(pos(p.position_id).nama)} · ${p.aktif ? 'aktif' : 'nonaktif'}`)}
+  openModal(`${modalHead('Cek akses: ' + p.nama, `${p.division_id ? esc(div(p.division_id).nama) : 'All divisi'} · ${esc(pos(p.position_id).nama)} · ${p.aktif ? 'aktif' : 'nonaktif'}`)}
   <div class="note">${l ? 'Setelah login, langsung diarahkan ke <b>' + esc(l.nama) + '</b>.' : appsUser(p).length ? 'Setelah login, melihat portal.' : 'Tidak bisa membuka aplikasi apa pun.'}</div>
   <div class="tbl-wrap"><table><thead><tr><th>Aplikasi</th><th>Divisi</th><th>Akses</th><th>Alasan</th></tr></thead><tbody>
   ${ORG.apps.map(a => { const c = cekAkses(p, a.id); return `<tr><td><b>${esc(a.nama)}</b><br><span class="small muted">${esc(a.url)}</span></td><td>${divLabel(a.division_id)}</td><td>${c.ok ? '<span class="chip c-ok">Boleh</span>' : '<span class="chip c-mute">Tidak</span>'}</td><td class="small wrap">${esc(c.alasan)}</td></tr>`; }).join('')}
@@ -525,7 +548,7 @@ function pagePengecualian(v) {
     openModal(`${modalHead('Tambah pengecualian')}
     <div class="form-grid">
       <label class="f"><span>Orang</span><input id="exQ" list="exPeople" placeholder="Ketik nama"><datalist id="exPeople">${ORG.profiles.filter(p => p.aktif).map(p => `<option value="${esc(p.nama)}">`).join('')}</datalist></label>
-      <label class="f"><span>Aplikasi</span><select id="exApp"><option value="">Pilih aplikasi</option>${ORG.apps.map(a => opt(a.id, a.nama + (a.division_id ? ' · ' + (div(a.division_id).nama || '') : ' · Lintas divisi'))).join('')}</select></label>
+      <label class="f"><span>Aplikasi</span><select id="exApp"><option value="">Pilih aplikasi</option>${ORG.apps.map(a => opt(a.id, a.nama + (a.division_id ? ' · ' + (div(a.division_id).nama || '') : ' · All divisi'))).join('')}</select></label>
       <label class="f"><span>Jenis</span><select id="exType"><option value="1">Izinkan</option><option value="0">Blokir</option></select></label>
     </div>
     <label class="f" style="margin-top:12px"><span>Alasan</span><textarea id="exWhy" rows="2"></textarea></label>
@@ -554,8 +577,16 @@ function pageMaster(v) {
   const out = $('#mOut'), redraw = () => pageMaster(v);
   if (MTab === 'divisi') {
     out.innerHTML = `<h2>Divisi</h2><p class="sub">Setelah divisi dibuat: tambahkan aplikasinya, centang jabatan yang memakainya, lalu atur matriks akses.</p>
-    <div class="tbl-wrap"><table><thead><tr><th>Kode</th><th>Nama</th><th class="num">Akun aktif</th><th class="num">Aplikasi</th><th>Jabatan</th></tr></thead><tbody>${ORG.divisions.map(d => `<tr><td><b>${esc(d.id)}</b></td><td>${esc(d.nama)}</td><td class="num">${ORG.profiles.filter(p => p.aktif && p.division_id === d.id).length}</td><td class="num">${ORG.apps.filter(a => a.division_id === d.id).length}</td><td class="small">${ORG.positions.filter(j => posDivs(j.id).includes(d.id)).map(j => esc(j.nama)).join(', ') || '—'}</td></tr>`).join('')}</tbody></table></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Kode</th><th>Nama</th><th class="num">Akun</th><th class="num">Aplikasi</th><th>Jabatan</th><th></th></tr></thead><tbody>${ORG.divisions.map(d => `<tr><td><b>${esc(d.id)}</b></td><td>${esc(d.nama)}</td><td class="num">${ORG.profiles.filter(p => p.division_id === d.id).length}</td><td class="num">${ORG.apps.filter(a => a.division_id === d.id).length}</td><td class="small">${ORG.positions.filter(j => posDivs(j.id).includes(d.id)).map(j => esc(j.nama)).join(', ') || '—'}</td><td><span class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn-soft btn-sm" data-dve="${d.id}">Ubah</button><button class="btn-sm btn-danger" data-dvd="${d.id}">Hapus</button></span></td></tr>`).join('')}</tbody></table></div>
     <div class="row" style="margin-top:14px"><label class="f"><span>Kode</span><input id="dvKode" placeholder="KTC" maxlength="5" style="width:110px;text-transform:uppercase"></label><label class="f grow"><span>Nama divisi</span><input id="dvNama" placeholder="Kitchen"></label><button class="btn-primary" id="dvAdd">Tambah divisi</button></div>`;
+    out.querySelectorAll('[data-dve]').forEach(b => b.onclick = () => { const d = div(b.dataset.dve);
+      openModal(`${modalHead('Ubah divisi ' + d.id, 'Kode divisi tidak bisa diubah karena dipakai di banyak data.')}<label class="f"><span>Nama divisi</span><input id="edNama" value="${esc(d.nama)}"></label><div class="actions"><button data-close>Batal</button><button class="btn-primary" id="edSave">Simpan</button></div>`);
+      $('#edSave').onclick = () => run($('#edSave'), async () => { const n = $('#edNama').value.trim(); if (!n) throw new Error('Isi nama divisi.'); const { error } = await sb.from('divisions').update({ nama: n }).eq('id', d.id); if (error) throw new Error(/duplicate|unique/i.test(error.message) ? 'Nama divisi sudah dipakai.' : error.message); await loadAll(); closeModal(); toast('Divisi diperbarui.'); redraw(); }); });
+    out.querySelectorAll('[data-dvd]').forEach(b => b.onclick = () => { const d = div(b.dataset.dvd);
+      if (ORG.profiles.some(p => p.division_id === d.id)) return toast(`Divisi ${d.nama} masih punya akun. Pindahkan atau hapus akunnya dulu.`, true);
+      if (ORG.apps.some(a => a.division_id === d.id)) return toast(`Divisi ${d.nama} masih punya aplikasi. Hapus atau pindahkan aplikasinya dulu.`, true);
+      if (!confirm(`Hapus divisi ${d.nama}? Matriks akses divisi ini ikut terhapus.`)) return;
+      run(b, async () => { const { error } = await sb.from('divisions').delete().eq('id', d.id); if (error) throw new Error(/foreign key|violates/i.test(error.message) ? 'Divisi masih dipakai data lain.' : error.message); await loadAll(); toast('Divisi dihapus.'); redraw(); }); });
     $('#dvAdd').onclick = () => run($('#dvAdd'), async () => {
       const kode = $('#dvKode').value.trim().toUpperCase(), nama = $('#dvNama').value.trim();
       if (!/^[A-Z]{2,5}$/.test(kode)) throw new Error('Kode divisi 2–5 huruf, contoh: KTC.');
@@ -566,13 +597,13 @@ function pageMaster(v) {
     });
   }
   if (MTab === 'jabatan') {
-    out.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Jabatan</h2><p class="sub" style="margin:0">Cakupan "divisi sendiri" mengikuti matriks. "Semua divisi" otomatis membuka semua aplikasi.</p></div><button class="btn-primary" id="jbAdd">Tambah jabatan</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Jabatan</th><th>Kode</th><th>Cakupan</th><th>Dipakai di divisi</th><th class="num">Akun aktif</th><th></th></tr></thead><tbody>${ORG.positions.map(j => `<tr><td><b>${esc(j.nama)}</b></td><td class="small muted">${esc(j.id)}</td><td>${j.cakupan === 'semua' ? '<span class="chip c-info">Semua divisi</span>' : '<span class="chip c-mute">Divisi sendiri</span>'}</td><td class="small">${j.cakupan === 'semua' ? '—' : posDivs(j.id).map(d => esc(div(d).nama)).join(', ')}</td><td class="num">${ORG.profiles.filter(p => p.aktif && p.position_id === j.id).length}</td><td><button class="btn-soft btn-sm" data-jb="${j.id}">Ubah</button></td></tr>`).join('')}</tbody></table></div>`;
+    out.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Jabatan</h2><p class="sub" style="margin:0">Cakupan "divisi sendiri" mengikuti matriks. "All divisi" otomatis membuka semua aplikasi.</p></div><button class="btn-primary" id="jbAdd">Tambah jabatan</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Jabatan</th><th>Kode</th><th>Cakupan</th><th>Dipakai di divisi</th><th class="num">Akun aktif</th><th></th></tr></thead><tbody>${ORG.positions.map(j => `<tr><td><b>${esc(j.nama)}</b></td><td class="small muted">${esc(j.id)}</td><td>${j.cakupan === 'semua' ? '<span class="chip c-info">All divisi</span>' : '<span class="chip c-mute">Divisi sendiri</span>'}</td><td class="small">${j.cakupan === 'semua' ? '—' : posDivs(j.id).map(d => esc(div(d).nama)).join(', ')}</td><td class="num">${ORG.profiles.filter(p => p.aktif && p.position_id === j.id).length}</td><td><span class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn-soft btn-sm" data-jb="${j.id}">Ubah</button>${j.id === 'superadmin' ? '' : `<button class="btn-sm btn-danger" data-jbd="${j.id}">Hapus</button>`}</span></td></tr>`).join('')}</tbody></table></div>`;
     const form = id => {
       const j = id ? pos(id) : { nama: '', cakupan: 'divisi' }, dv = id ? posDivs(id) : [];
-      openModal(`${modalHead(id ? 'Ubah jabatan' : 'Tambah jabatan')}<div class="form-grid"><label class="f"><span>Nama jabatan</span><input id="jbNama" value="${esc(j.nama)}"></label><label class="f"><span>Cakupan</span><select id="jbCak">${opt('divisi', 'Divisi sendiri', j.cakupan)}${opt('semua', 'Semua divisi', j.cakupan)}</select></label></div>
+      openModal(`${modalHead(id ? 'Ubah jabatan' : 'Tambah jabatan')}<div class="form-grid"><label class="f"><span>Nama jabatan</span><input id="jbNama" value="${esc(j.nama)}"></label><label class="f"><span>Cakupan</span><select id="jbCak">${opt('divisi', 'Divisi sendiri', j.cakupan)}${opt('semua', 'All divisi', j.cakupan)}</select></label></div>
       <div id="jbDivWrap" style="margin-top:12px"><span class="small muted" style="font-weight:600">Dipakai di divisi</span><div class="area-pick" style="margin-top:6px">${ORG.divisions.map(d => `<label><input type="checkbox" value="${d.id}" ${dv.includes(d.id) ? 'checked' : ''}>${esc(d.nama)}</label>`).join('')}</div></div>
-      <p class="small muted" style="margin:10px 0 0">Cakupan semua divisi memberi akses ke seluruh aplikasi termasuk Backoffice. Gunakan hanya untuk pimpinan atau admin pusat.</p>
+      <p class="small muted" style="margin:10px 0 0">Cakupan all divisi memberi akses ke seluruh aplikasi termasuk Backoffice. Gunakan hanya untuk pimpinan atau admin pusat.</p>
       <div class="actions"><button data-close>Batal</button><button class="btn-primary" id="jbSave">Simpan</button></div>`);
       const t = () => $('#jbDivWrap').hidden = $('#jbCak').value === 'semua'; $('#jbCak').onchange = t; t();
       $('#jbSave').onclick = () => run($('#jbSave'), async () => {
@@ -581,16 +612,20 @@ function pageMaster(v) {
       });
     };
     $('#jbAdd').onclick = () => form(null); out.querySelectorAll('[data-jb]').forEach(b => b.onclick = () => form(b.dataset.jb));
+    out.querySelectorAll('[data-jbd]').forEach(b => b.onclick = () => { const j = pos(b.dataset.jbd), n = ORG.profiles.filter(p => p.position_id === j.id).length;
+      if (n) return toast(`${n} akun masih memakai jabatan ${j.nama}. Ubah jabatan akun-akun itu dulu.`, true);
+      if (!confirm(`Hapus jabatan ${j.nama}? Matriks akses jabatan ini ikut terhapus.`)) return;
+      run(b, async () => { const { error } = await sb.from('positions').delete().eq('id', j.id); if (error) throw new Error(/foreign key|violates/i.test(error.message) ? 'Jabatan masih dipakai data lain.' : error.message); await loadAll(); toast('Jabatan dihapus.'); redraw(); }); });
   }
   if (MTab === 'aplikasi') {
     out.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Aplikasi</h2><p class="sub" style="margin:0">Dibaca portal untuk menampilkan kartu aplikasi. URL harus sama dengan folder aplikasinya di dalam <code>public</code>.</p></div><button class="btn-primary" id="apAdd">Tambah aplikasi</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Aplikasi</th><th>Kode</th><th>Divisi</th><th>URL</th><th class="num">Orang yang bisa membuka</th><th>Status</th><th></th></tr></thead><tbody>${ORG.apps.map(a => `<tr><td><b>${esc(a.nama)}</b></td><td class="small muted">${esc(a.id)}</td><td>${divLabel(a.division_id)}</td><td><code>${esc(a.url)}</code></td><td class="num">${ORG.profiles.filter(p => cekAkses(p, a.id).ok).length}</td><td>${a.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>'}</td><td><button class="btn-soft btn-sm" data-ap="${a.id}">Ubah</button></td></tr>`).join('')}</tbody></table></div>`;
+    <div class="tbl-wrap"><table><thead><tr><th>Aplikasi</th><th>Kode</th><th>Divisi</th><th>URL</th><th class="num">Orang yang bisa membuka</th><th>Status</th><th></th></tr></thead><tbody>${ORG.apps.map(a => `<tr><td><b>${esc(a.nama)}</b></td><td class="small muted">${esc(a.id)}</td><td>${divLabel(a.division_id)}</td><td><code>${esc(a.url)}</code></td><td class="num">${ORG.profiles.filter(p => cekAkses(p, a.id).ok).length}</td><td>${a.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>'}</td><td><span class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn-soft btn-sm" data-ap="${a.id}">Ubah</button>${a.id === 'backoffice' ? '' : `<button class="btn-sm btn-danger" data-apd="${a.id}">Hapus</button>`}</span></td></tr>`).join('')}</tbody></table></div>`;
     const form = id => {
       const a = id ? app(id) : { id: '', nama: '', division_id: '', url: '', aktif: true, urutan: 100 };
       openModal(`${modalHead(id ? 'Ubah aplikasi' : 'Tambah aplikasi')}<div class="form-grid">
         ${id ? '' : '<label class="f"><span>Kode</span><input id="apId" placeholder="ktc-stok"></label>'}
         <label class="f"><span>Nama</span><input id="apNama" value="${esc(a.nama)}"></label>
-        <label class="f"><span>Divisi</span><select id="apDiv"><option value="">Lintas divisi</option>${ORG.divisions.map(d => opt(d.id, d.nama, a.division_id)).join('')}</select></label>
+        <label class="f"><span>Divisi</span><select id="apDiv"><option value="">All divisi</option>${ORG.divisions.map(d => opt(d.id, d.nama, a.division_id)).join('')}</select></label>
         <label class="f"><span>URL</span><input id="apUrl" value="${esc(a.url)}" placeholder="/kitchen/stok"></label>
         <label class="f"><span>Urutan</span><input id="apUrut" type="number" value="${a.urutan}"></label>
         <label class="f"><span>Status</span><select id="apAkt">${opt('1', 'Aktif', a.aktif ? '1' : '0')}${opt('0', 'Nonaktif (disembunyikan)', a.aktif ? '1' : '0')}</select></label></div>
@@ -612,6 +647,9 @@ function pageMaster(v) {
       });
     };
     $('#apAdd').onclick = () => form(null); out.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => form(b.dataset.ap));
+    out.querySelectorAll('[data-apd]').forEach(b => b.onclick = () => { const a = app(b.dataset.apd);
+      if (!confirm(`Hapus aplikasi ${a.nama}? Kartunya hilang dari portal, dan matriks akses serta pengecualian untuk aplikasi ini ikut terhapus. File web-nya tidak terhapus.`)) return;
+      run(b, async () => { const { error } = await sb.from('apps').delete().eq('id', a.id); if (error) throw new Error(error.message); await loadAll(); toast('Aplikasi dihapus.'); redraw(); }); });
   }
 }
 
@@ -619,11 +657,11 @@ function pageMaster(v) {
 const LS = { divisi: '', status: 'aktif' };
 function pageLaporan(v) {
   const list = ORG.profiles.filter(p => (!LS.divisi || (LS.divisi === '-' ? !p.division_id : p.division_id === LS.divisi)) && (!LS.status || (LS.status === 'aktif') === p.aktif));
-  const aktif = ORG.profiles.filter(p => p.aktif), divs = [...ORG.divisions.map(d => ({ id: d.id, nama: d.nama })), { id: null, nama: 'Lintas divisi' }];
+  const aktif = ORG.profiles.filter(p => p.aktif), divs = [...ORG.divisions.map(d => ({ id: d.id, nama: d.nama })), { id: null, nama: 'All divisi' }];
   const hc = ORG.positions.map(j => { const r = { jab: j.nama }; let t = 0; divs.forEach(d => { const n = list.filter(p => p.position_id === j.id && (p.division_id || null) === d.id).length; r[d.id || '-'] = n; t += n; }); r.total = t; return r; }).filter(r => r.total);
-  const rows = list.map(p => ({ p, nama: p.nama, username: p.username, divNama: p.division_id ? div(p.division_id).nama : 'Lintas divisi', jabNama: pos(p.position_id).nama, kontrak: p.kontrak || '', status: p.aktif ? 'Aktif' : 'Nonaktif', dibuat: p.created_at }));
+  const rows = list.map(p => ({ p, nama: p.nama, username: p.username, divNama: p.division_id ? div(p.division_id).nama : 'All divisi', jabNama: pos(p.position_id).nama, kontrak: p.kontrak || '', status: p.aktif ? 'Aktif' : 'Nonaktif', dibuat: p.created_at }));
   v.innerHTML = `<div class="card"><div class="row">
-    <label class="f"><span>Divisi</span><select id="lsDiv"><option value="">Semua divisi</option>${ORG.divisions.map(d => opt(d.id, d.nama, LS.divisi)).join('')}<option value="-" ${LS.divisi === '-' ? 'selected' : ''}>Lintas divisi</option></select></label>
+    <label class="f"><span>Divisi</span><select id="lsDiv"><option value="">All divisi</option>${ORG.divisions.map(d => opt(d.id, d.nama, LS.divisi)).join('')}<option value="-" ${LS.divisi === '-' ? 'selected' : ''}>All divisi</option></select></label>
     <label class="f"><span>Status</span><select id="lsSt">${[['aktif', 'Aktif'], ['nonaktif', 'Nonaktif'], ['', 'Semua']].map(([k, l]) => opt(k, l, LS.status)).join('')}</select></label>
     <span class="grow"></span><button class="btn-primary" id="lsXls">Unduh Excel</button></div>
     <p class="small muted" style="margin:10px 0 0">Laporan absensi semua divisi ditambahkan setelah modul absensi terpasang.</p></div>
@@ -643,23 +681,34 @@ function pageLaporan(v) {
     XLSX_LITE.download(`Laporan Data SDM ${TODAY}.xlsx`, [
       { name: 'Headcount', columns: [{ label: 'Jabatan', width: 20 }, ...divs.map(d => ({ label: d.nama, type: 'num', width: 13 })), { label: 'Total', type: 'num', width: 10 }], rows: hc.map(r => [r.jab, ...divs.map(d => r[d.id || '-']), r.total]) },
       { name: 'Daftar SDM', columns: [{ label: 'Nama', width: 24 }, { label: 'Username', width: 22 }, { label: 'Divisi', width: 14 }, { label: 'Jabatan', width: 16 }, { label: 'Kontrak', width: 11 }, { label: 'Status', width: 10 }, { label: 'Dibuat', type: 'date', width: 12 }], rows: rows.slice().sort((a, b) => a.divNama.localeCompare(b.divNama) || a.nama.localeCompare(b.nama)).map(r => [r.nama, r.username, r.divNama, r.jabNama, r.kontrak, r.status, r.dibuat.slice(0, 10)]) },
-      { name: 'Info', filter: false, freeze: false, columns: [{ label: 'Keterangan', width: 22 }, { label: 'Isi', width: 50 }], rows: [['Laporan', 'Data SDM'], ['Divisi', LS.divisi === '-' ? 'Lintas divisi' : LS.divisi ? div(LS.divisi).nama : 'Semua'], ['Status', LS.status || 'Semua'], ['Jumlah orang', rows.length], ['Dibuat oleh', ME.nama], ['Dibuat pada', fmtDate(now) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes())]] }
+      { name: 'Info', filter: false, freeze: false, columns: [{ label: 'Keterangan', width: 22 }, { label: 'Isi', width: 50 }], rows: [['Laporan', 'Data SDM'], ['Divisi', LS.divisi === '-' ? 'All divisi' : LS.divisi ? div(LS.divisi).nama : 'Semua'], ['Status', LS.status || 'Semua'], ['Jumlah orang', rows.length], ['Dibuat oleh', ME.nama], ['Dibuat pada', fmtDate(now) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes())]] }
     ]);
     toast('Excel diunduh: ' + rows.length + ' orang.');
   };
 }
 
 /* ---------- Riwayat aktivitas ---------- */
-const AKSI = { buat_akun: 'Buat akun', ubah_akun: 'Ubah akun', aktifkan_akun: 'Aktifkan akun', nonaktifkan_akun: 'Nonaktifkan akun', reset_password: 'Reset password', simpan_matriks: 'Simpan matriks', simpan_jabatan: 'Simpan jabatan' };
+const AKSI = { proses_reimburse: 'Proses reimburse', catat_absen: 'Catat izin/sakit', buat_akun: 'Buat akun', ubah_akun: 'Ubah akun', aktifkan_akun: 'Aktifkan akun', nonaktifkan_akun: 'Nonaktifkan akun', reset_password: 'Reset password', simpan_matriks: 'Simpan matriks', simpan_jabatan: 'Simpan jabatan' };
 async function pageRiwayat(v) {
+  const RW = pageRiwayat.s || (pageRiwayat.s = { page: 0, size: 50 });
   v.innerHTML = '<div class="card empty">Memuat riwayat…</div>';
-  const rows = (await q(sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(300))).map(r => ({
-    ...r, waktu: r.created_at, oleh: prof(r.actor_id).nama || '—', aksiNama: AKSI[r.aksi] || r.aksi,
-    target: r.target_tabel === 'profiles' ? (prof(r.target_id).nama || r.target_id) : r.target_tabel === 'role_app_access' ? (div(r.target_id).nama || r.target_id) : r.target_tabel === 'positions' ? (pos(r.target_id).nama || r.target_id) : r.target_id
-  }));
-  const cols = [{ key: 'waktu', label: 'Waktu', render: r => fmtDateTime(r.waktu) }, { key: 'oleh', label: 'Oleh', render: r => `<b>${esc(r.oleh)}</b>` }, { key: 'aksiNama', label: 'Aksi' }, { key: 'target', label: 'Target' }];
-  v.innerHTML = `<div class="card"><h2>Riwayat aktivitas</h2><p class="sub">300 aktivitas terakhir di Backoffice dan pengelolaan akun.</p>${dataTable('audit', cols, rows, { sortKey: 'waktu', sortDir: 'desc', maxHeight: 640, empty: 'Belum ada aktivitas.' })}</div>`;
-  bindDataTable(v, 'audit', () => pageRiwayat(v));
+  const { data, count, error } = await sb.from('audit_log').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(RW.page * RW.size, RW.page * RW.size + RW.size - 1);
+  if (error) throw new Error(error.message);
+  const pages = Math.max(1, Math.ceil((count || 0) / RW.size));
+  const label = r => r.target_tabel === 'profiles' ? (prof(r.target_id).nama || r.target_id) : r.target_tabel === 'role_app_access' ? (div(r.target_id).nama || r.target_id) : r.target_tabel === 'positions' ? (pos(r.target_id).nama || r.target_id) : (r.target_id || '');
+  v.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Riwayat aktivitas</h2><p class="sub" style="margin:0">${(count || 0).toLocaleString('id-ID')} aktivitas, terbaru di atas.</p></div><button class="btn-soft" id="rwXls">Unduh Excel</button></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Waktu</th><th>Oleh</th><th>Aksi</th><th>Target</th></tr></thead><tbody>
+  ${data.map(r => `<tr><td>${fmtDateTime(r.created_at)}</td><td><b>${esc(prof(r.actor_id).nama || '—')}</b></td><td>${esc(AKSI[r.aksi] || r.aksi)}</td><td>${esc(label(r))}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">Belum ada aktivitas.</td></tr>'}
+  </tbody></table></div>
+  <div class="pager"><span class="small muted">Hal ${RW.page + 1} / ${pages}</span><span class="row" style="gap:6px"><button class="btn-sm" id="rwPrev" ${RW.page ? '' : 'disabled'}>‹ Sebelumnya</button><button class="btn-sm" id="rwNext" ${RW.page < pages - 1 ? '' : 'disabled'}>Berikutnya ›</button></span></div></div>`;
+  $('#rwPrev').onclick = () => { RW.page--; pageRiwayat(v); }; $('#rwNext').onclick = () => { RW.page++; pageRiwayat(v); };
+  $('#rwXls').onclick = () => run($('#rwXls'), async () => {
+    let all = [], from = 0;
+    for (;;) { const { data: d, error: e } = await sb.from('audit_log').select('*').order('created_at', { ascending: false }).range(from, from + 999); if (e) throw new Error(e.message); all = all.concat(d); if (d.length < 1000 || all.length >= 20000) break; from += 1000; }
+    XLSX_LITE.download(`Riwayat aktivitas ${TODAY}.xlsx`, [{ name: 'Riwayat', columns: [{ label: 'Waktu', width: 18 }, { label: 'Oleh', width: 24 }, { label: 'Aksi', width: 20 }, { label: 'Tabel', width: 18 }, { label: 'Target', width: 28 }, { label: 'Detail', width: 60 }],
+      rows: all.map(r => [fmtDateTime(r.created_at), prof(r.actor_id).nama || '', AKSI[r.aksi] || r.aksi, r.target_tabel || '', label(r), r.detail ? JSON.stringify(r.detail) : '']) }]);
+    toast('Excel diunduh: ' + all.length + ' aktivitas.');
+  });
 }
 
 /* ---------- Import akun dari CSV ---------- */

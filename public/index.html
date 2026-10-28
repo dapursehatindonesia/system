@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#04331f">
 <title>Masuk · Healthy Go</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/shared/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/shared/favicon.png">
+<link rel="apple-touch-icon" href="/shared/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -18,6 +21,7 @@ button,input{font:inherit;color:inherit}
 button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
 .hero{background:var(--hg-deep);color:#fff;padding:36px 20px 96px;text-align:center}
 .logo{width:56px;height:56px;border-radius:16px;background:var(--sun);color:var(--hg-deep);display:grid;place-items:center;font-weight:800;font-size:20px;margin:0 auto 14px}
+.logo-img{height:56px;width:auto;display:block;margin:0 auto 14px}
 .hero h1{margin:0;font-size:24px;letter-spacing:-.01em}.hero p{margin:6px 0 0;color:#a9c9b6}
 .wrap{max-width:460px;margin:-70px auto 40px;padding:0 16px}
 .wrap.wide{max-width:880px}
@@ -52,7 +56,7 @@ input{background:var(--field);border:1px solid var(--line);border-radius:12px;pa
 </style>
 </head>
 <body>
-<header class="hero"><div class="logo" aria-hidden="true">HG</div><h1 id="heroTitle">Healthy Go</h1><p id="heroSub">Masuk untuk melanjutkan</p></header>
+<header class="hero"><img class="logo-img" src="/shared/logo-putih.png" alt="Healthy Go"><h1 id="heroTitle">Healthy Go</h1><p id="heroSub">Masuk untuk melanjutkan</p></header>
 
 <main class="wrap" id="wrap">
   <!-- Memuat -->
@@ -134,10 +138,10 @@ function showPortal(prof, apps) {
   $('#heroSub').textContent = 'Pilih aplikasi yang ingin dibuka';
   $('#pAv').textContent = prof.nama.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
   $('#pName').textContent = prof.nama;
-  $('#pRole').textContent = (prof.positions ? prof.positions.nama : prof.position_id) + ' · ' + (prof.divisions ? prof.divisions.nama : 'Semua divisi');
+  $('#pRole').textContent = (prof.positions ? prof.positions.nama : prof.position_id) + ' · ' + (prof.divisions ? prof.divisions.nama : 'All divisi');
   msg('#portalMsg', DENIED ? 'Anda tidak punya akses ke aplikasi tersebut.' : !apps.length ? 'Akun Anda belum punya akses ke aplikasi mana pun. Hubungi admin.' : '', DENIED ? 'bad' : 'info');
   const groups = {};
-  apps.forEach(a => (groups[a.divisi || 'Lintas divisi'] = groups[a.divisi || 'Lintas divisi'] || []).push(a));
+  apps.forEach(a => (groups[a.divisi || 'All divisi'] = groups[a.divisi || 'All divisi'] || []).push(a));
   $('#appList').innerHTML = Object.entries(groups).map(([g, list]) => `<div class="grp">${esc(g)}</div><div class="apps">${list.map(a => `<a class="app" href="${esc(a.url)}/"><b>${esc(a.nama)}</b><small>${esc(a.url)}</small>${a.utama ? '<span class="tag">Utama</span>' : ''}</a>`).join('')}</div>`).join('');
 }
 

@@ -31,14 +31,13 @@
   fill('refreshmentName', 'refreshmentRole');
   fill('qnaName', 'qnaRole');
 
-  // Tombol kembali: kurir → aplikasi Kurir, lainnya → portal
+  // Tombol kembali di bagian bawah menu samping (kurir → aplikasi Kurir, lainnya → portal)
   const back = document.createElement('a');
   back.href = p.position_id === 'kurir' ? '/delivery/kurir/' : '/?portal=1';
-  back.textContent = '← ' + (p.position_id === 'kurir' ? 'Aplikasi Kurir' : 'Portal');
-  back.setAttribute('aria-label', 'Kembali');
-  back.style.cssText = 'position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:12px;z-index:9999;background:#074b34;color:#fff;' +
-    'font:600 13px system-ui,sans-serif;padding:8px 12px;border-radius:999px;text-decoration:none;box-shadow:0 4px 12px rgba(0,0,0,.18)';
-  document.body.appendChild(back);
+  back.textContent = '← ' + (p.position_id === 'kurir' ? 'Kembali ke aplikasi Kurir' : 'Kembali ke portal');
+  back.style.cssText = 'display:block;margin-top:12px;color:#f3cf1b;font-weight:700;font-size:13px;text-decoration:none';
+  const foot = document.querySelector('.sidefoot');
+  if (foot) foot.appendChild(back); else document.body.appendChild(back);
 })().catch(e => {
   document.body.insertAdjacentHTML('afterbegin', '<p style="padding:16px;font-family:sans-serif;color:#b4281c">Gagal memuat Training: ' + String(e.message || e) + '</p>');
 });

@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Management Delivery · Healthy Go</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/shared/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/shared/favicon.png">
+<link rel="apple-touch-icon" href="/shared/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -184,6 +187,8 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--hg-50)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
 body::before{background:var(--hg-deep)}
+.pager{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px}
+.brand-logo{height:34px;width:auto;display:block}
 [hidden]{display:none!important}
 .kpi small a{color:inherit}
 </style>
@@ -191,7 +196,7 @@ body::before{background:var(--hg-deep)}
 <body>
 <div class="shell">
   <aside class="side" id="side" aria-label="Menu utama">
-    <div class="brand"><div class="brand-mark">HG</div><div><b>Management Delivery</b><small>Healthy Go</small></div></div>
+    <div class="brand"><img class="brand-logo" src="/shared/logo-putih.png" alt="Healthy Go"><div><b>Management Delivery</b><small>Healthy Go</small></div></div>
     <nav class="nav" id="nav"></nav>
     <div class="side-foot"><div class="me" id="meBox"></div><a href="/delivery/training/">Buka Training (LMS)</a><a href="/?portal=1">Kembali ke portal</a><a href="#" id="logoutLink">Keluar</a></div>
   </aside>
@@ -207,26 +212,36 @@ body::before{background:var(--hg-deep)}
 /* Tabel profesional: header beku, scroll, sort lewat panah di kanan judul kolom */
 const TBL = {};
 function dataTable(id, cols, rows, opt = {}) {
-  const st = TBL[id] || (TBL[id] = { key: opt.sortKey || cols[0].key, dir: opt.sortDir || 'asc' });
+  const st = TBL[id] || (TBL[id] = { key: opt.sortKey || cols[0].key, dir: opt.sortDir || 'asc', page: 0 });
   const col = cols.find(c => c.key === st.key) || cols[0];
   const val = r => col.sort ? col.sort(r) : r[col.key];
   const sorted = [...rows].sort((a, b) => {
     const x = val(a), y = val(b);
-    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;   // kosong selalu di bawah
-    const c = typeof x === 'string' ? x.localeCompare(y, 'id') : x - y;
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+    const c = typeof x === 'string' ? x.localeCompare(y, 'id', { numeric: true }) : x - y;
     return st.dir === 'asc' ? c : -c;
   });
+  const size = opt.pageSize || 0, pages = size ? Math.max(1, Math.ceil(sorted.length / size)) : 1;
+  if ((st.page || 0) >= pages) st.page = pages - 1; if (!st.page || st.page < 0) st.page = st.page > 0 ? st.page : 0;
+  const shown = size ? sorted.slice(st.page * size, st.page * size + size) : sorted;
   const arrow = c => st.key !== c.key ? '<span class="arr idle">▲▼</span>' : `<span class="arr">${st.dir === 'asc' ? '▲' : '▼'}</span>`;
+  const pager = size && sorted.length > size ? `<div class="pager" data-pg="${id}"><span class="small muted">${(st.page * size + 1).toLocaleString('id-ID')}–${Math.min(sorted.length, st.page * size + size).toLocaleString('id-ID')} dari ${sorted.length.toLocaleString('id-ID')}</span><span class="row" style="gap:6px"><button class="btn-sm" data-pgo="first" ${st.page ? '' : 'disabled'}>«</button><button class="btn-sm" data-pgo="prev" ${st.page ? '' : 'disabled'}>‹ Sebelumnya</button><span class="small">Hal ${st.page + 1} / ${pages}</span><button class="btn-sm" data-pgo="next" ${st.page < pages - 1 ? '' : 'disabled'}>Berikutnya ›</button><button class="btn-sm" data-pgo="last" ${st.page < pages - 1 ? '' : 'disabled'}>»</button></span></div>` : '';
+  st.pages = pages;
   return `<div class="tbl-wrap tbl-scroll" style="max-height:${opt.maxHeight || 520}px"><table class="dt${opt.freezeFirst ? ' freeze' : ''}" data-dt="${id}">
     <thead><tr>${cols.map(c => `<th class="${c.num ? 'num' : ''}" aria-sort="${st.key === c.key ? (st.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="th-sort" data-sort="${c.key}" title="Urutkan ${esc(c.label)}"><span>${c.label}</span>${arrow(c)}</button></th>`).join('')}</tr></thead>
-    <tbody>${sorted.map(r => `<tr ${opt.rowAttr ? opt.rowAttr(r) : ''}>${cols.map(c => `<td class="${c.num ? 'num' : ''}${c.wrap ? ' wrap' : ''}">${c.render ? c.render(r) : esc(r[c.key])}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty">${opt.empty || 'Tidak ada data.'}</td></tr>`}</tbody>
-  </table></div>`;
+    <tbody>${shown.map(r => `<tr ${opt.rowAttr ? opt.rowAttr(r) : ''}>${cols.map(c => `<td class="${c.num ? 'num' : ''}${c.wrap ? ' wrap' : ''}">${c.render ? c.render(r) : esc(r[c.key])}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty">${opt.empty || 'Tidak ada data.'}</td></tr>`}</tbody>
+  </table></div>${pager}`;
 }
 function bindDataTable(root, id, redraw) {
   root.querySelectorAll(`table[data-dt="${id}"] [data-sort]`).forEach(b => b.onclick = () => {
     const st = TBL[id];
     if (st.key === b.dataset.sort) st.dir = st.dir === 'asc' ? 'desc' : 'asc';
     else { st.key = b.dataset.sort; st.dir = b.closest('th').classList.contains('num') ? 'desc' : 'asc'; }
+    st.page = 0; redraw();
+  });
+  root.querySelectorAll(`[data-pg="${id}"] [data-pgo]`).forEach(b => b.onclick = () => {
+    const st = TBL[id], g = b.dataset.pgo;
+    st.page = g === 'first' ? 0 : g === 'last' ? st.pages - 1 : g === 'prev' ? Math.max(0, st.page - 1) : Math.min(st.pages - 1, st.page + 1);
     redraw();
   });
 }
@@ -277,8 +292,8 @@ async function loadAll() {
     q(sb.from('attendance_points').select('*').order('nama')),
     q(sb.from('attendance_sessions').select('*')),
     q(sb.from('dlv_target_default').select('*')),
-    q(sb.from('profiles').select('id, nama, username, email, division_id, position_id, kontrak, aktif').eq('division_id', 'DLV').order('nama')),
-    q(sb.from('dlv_penugasan').select('*'))
+    fetchAll(() => sb.from('profiles').select('id, nama, username, email, division_id, position_id, kontrak, aktif').eq('division_id', 'DLV').order('id')),
+    fetchAll(() => sb.from('dlv_penugasan').select('*').order('id'))
   ]);
   Object.assign(D, { branches: b, areas: a, korlap: k, points: pt, sessions: s, targetDefault: td, people: pe, penugasan: pg });
 }
@@ -318,6 +333,7 @@ const NAV = [
   { id: 'penilaian', label: 'Isi penilaian', ok: () => R.admin || R.korlap },
   { id: 'laporan', label: 'Laporan penilaian', ok: () => true },
   { id: 'absensi', label: 'Absensi', ok: () => true },
+  { id: 'tanya', label: 'Tanya jawab LMS', ok: () => true },
   { grp: 'Administrasi' },
   { id: 'reimburse', label: 'Reimbursement', ok: () => R.admin || R.manajer },
   { id: 'akun', label: 'Akun kurir', ok: () => R.admin || R.hrd },
@@ -329,7 +345,7 @@ async function pageDashboard(v) {
   v.innerHTML = '<div class="card empty">Memuat…</div>';
   const ids = myAreaIds(), kur = kurirList().filter(k => ids.includes(areaOf(k.id)));
   const [abs, rb] = await Promise.all([
-    q(sb.from('attendance').select('profile_id, sesi, status').eq('tanggal', TODAY)),
+    fetchAll(() => sb.from('attendance').select('profile_id, sesi, status').eq('tanggal', TODAY).order('id')),
     (R.admin || R.manajer) ? q(sb.from('dlv_reimburse').select('id', { count: 'exact' }).eq('status', 'Waiting')) : Promise.resolve([])
   ]);
   const kid = new Set(kur.map(k => k.id)), hadir = new Set(abs.filter(a => kid.has(a.profile_id) && a.status === 'Hadir').map(a => a.profile_id));
@@ -347,7 +363,7 @@ async function pageDashboard(v) {
 }
 
 /* ---------- Dashboard performa — sumber: sheet Cost (mingguan) + raw complaint (detail) ---------- */
-const DSH = { bulan: [monthKey(TODAY)], batch: [], branch: [], area: [], jabatan: [], nama: [] };
+const DSH = { bulan: [monthKey(TODAY)], batch: [], branch: [], area: [], jabatan: [], nama: [], per: 'branch' };
 const DCACHE = { key: '', cost: [], comp: [], target: [] };
 const uniq = a => [...new Set(a)];
 const num = n => Math.round(n || 0).toLocaleString('id-ID');
@@ -355,7 +371,8 @@ const fmtPct = (v, d = 1) => v == null ? '—' : v.toLocaleString('id-ID', { min
 const rupiahShort = n => Math.abs(n) >= 1e9 ? 'Rp ' + (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' M' : Math.abs(n) >= 1e6 ? 'Rp ' + (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt' : rupiah(n);
 const nb = s => /^\d+$/.test(String(s || '')) ? String(s).padStart(2, '0') : String(s || '');          // batch "4" = "04"
 const kunci = (nama, br) => normName(nama) + '|' + normName(br);
-const toSec = t => { if (!t) return null; const [h, m, s] = String(t).split(':').map(Number); return h * 3600 + m * 60 + (s || 0); };
+// 00:00:00 = tidak ada pengiriman → tidak ikut dirata-rata
+const toSec = t => { if (!t) return null; const [h, m, s] = String(t).split(':').map(Number); const v = h * 3600 + m * 60 + (s || 0); return v > 0 ? v : null; };
 const fromSec = s => s == null ? '—' : pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60));
 async function fetchAll(make) {
   let out = [], from = 0;
@@ -400,7 +417,8 @@ function ringkas(cost) {
   const S = k => cost.reduce((a, x) => a + Number(x[k] || 0), 0);
   const box = S('total_box'), hg = S('box_hg'), bk = S('box_bk'), gt = S('box_gt'), late = S('late_delivery'), comp = S('complaint'), tc = S('total_cost');
   const mt = cost.map(x => toSec(x.max_time)).filter(x => x != null);
-  return { box, hg, bk, gt, lain: Math.max(0, box - hg - bk - gt), b2b: S('box_b2b'), b2c: S('box_b2c'), late, comp, weekly: S('total_weekly'), tcost: tc, maxAvg: mt.length ? mt.reduce((a, x) => a + x, 0) / mt.length : null,
+  const b2b = S('box_b2b'), b2c = S('box_b2c');
+  return { box, hg, bk, gt, lain: Math.max(0, box - hg - bk - gt), b2b, b2c, office: Math.max(0, box - b2b - b2c), late, comp, weekly: S('total_weekly'), tcost: tc, maxAvg: mt.length ? mt.reduce((a, x) => a + x, 0) / mt.length : null,
     pLate: box ? late / box * 100 : null, pComp: box ? comp / box * 100 : null, cpb: box ? tc / box : null };
 }
 const PIE = ['#1d8a5b', '#e0b400', '#2b6fb6', '#c64039', '#7c4dcc', '#e07b2c', '#6b7f74'];
@@ -415,7 +433,7 @@ function barChart(items, fmt, cls) {
   const max = Math.max(0, ...items.map(x => x.v)) || 1;
   return `<div class="bars">${items.map(x => `<div class="bar"><span class="bar-l" title="${esc(x.l)}">${esc(x.l)}</span><div class="bar-track"><div class="bar-fill ${cls || ''}" style="width:${Math.max(x.v / max * 100, x.v ? 1 : 0)}%"></div></div><span class="small"><b>${fmt(x.v)}</b></span></div>`).join('') || '<div class="empty">Tidak ada data.</div>'}</div>`;
 }
-const chartCard = (t, s, b) => `<div class="card"><h2>${t}</h2><p class="sub">${s}</p>${b}</div>`;
+const chartCard = (t, s, b) => `<div class="card"><h2 style="margin-bottom:12px">${t}</h2>${b}</div>`;
 function msSummary(k) { const v = DSH[k]; if (!v.length) return 'Semua'; if (v.length === 1) { const o = dashOptions(k).find(x => x[0] === v[0]); return o ? o[1] : '1 dipilih'; } return v.length + ' dipilih'; }
 function closeAllMs() { document.querySelectorAll('.ms-pop').forEach(p => { p.hidden = true; p.previousElementSibling.setAttribute('aria-expanded', 'false'); }); }
 document.addEventListener('click', closeAllMs);
@@ -454,32 +472,35 @@ function drawPerforma() {
   if (!DCACHE.cost.length && !DCACHE.comp.length) { out.innerHTML = '<div class="card empty">Belum ada data untuk bulan ini. Pastikan sinkronisasi sudah berjalan (Pengaturan → Sinkronisasi data), atau pilih bulan lain.</div>'; return; }
   const cost = fCost(), comp = fComp(), T = ringkas(cost);
   const grp = (rows, key) => { const m = {}; rows.forEach(r => (m[r[key]] = m[r[key]] || []).push(r)); return m; };
-  const gA = grp(cost, 'areaNama'), gB = grp(cost, 'branchNama');
-  const perA = Object.keys(gA).map(a => ({ a, ...ringkas(gA[a]) })), perB = Object.keys(gB).map(b => ({ l: b, v: ringkas(gB[b]).box }));
-  const A = f => perA.map(x => ({ l: x.a, v: f(x) })).filter(x => x.v != null);
-  const desc = (a, b) => b.v - a.v, asc = (a, b) => a.v - b.v;
+  const per = DSH.per === 'area' ? 'area' : 'branch', gX = grp(cost, per === 'area' ? 'areaNama' : 'branchNama');
+  const perX = Object.keys(gX).map(a => ({ a, ...ringkas(gX[a]) }));
+  const A = f => perX.map(x => ({ l: x.a, v: f(x) })).filter(x => x.v != null);
+  const desc = (a, b) => b.v - a.v, asc = (a, b) => a.v - b.v, P = per === 'area' ? 'area' : 'branch';
   const byCat = Object.entries(comp.reduce((o, c) => (o[c.tipe || 'Lainnya'] = (o[c.tipe || 'Lainnya'] || 0) + 1, o), {})).map(([l, v]) => ({ l, v })).sort(desc);
-  const orang = uniq(cost.filter(c => !/payroll/i.test(c.batch)).map(c => c.kKey)).length;
+  const orang = uniq(cost.filter(c => !/payroll/i.test(c.batch)).map(c => normName(c.kNama))).length;
   out.innerHTML = `<div class="kpis">
     <div class="kpi lead"><span>Total box</span><b>${num(T.box)}</b><small>${num(orang)} orang</small></div>
     <div class="kpi"><span>Total Weekly</span><b title="${rupiah(T.weekly)}">${rupiahShort(T.weekly)}</b><small>yang dibayarkan</small></div>
     <div class="kpi"><span>Total Cost</span><b title="${rupiah(T.tcost)}">${rupiahShort(T.tcost)}</b><small>estimasi · ${T.cpb == null ? '—' : rupiah(T.cpb) + ' per box'}</small></div>
     <div class="kpi"><span>Complaint</span><b>${num(T.comp)}</b><small>${fmtPct(T.pComp, 2)} dari total box</small></div>
     <div class="kpi"><span>Late delivery</span><b>${num(T.late)}</b><small>${fmtPct(T.pLate)} dari total box</small></div>
-    <div class="kpi"><span>Rata-rata max time</span><b>${fromSec(T.maxAvg)}</b><small>rata-rata per batch</small></div>
-    ${[['HG', T.hg], ['BK', T.bk], ['GT', T.gt], ['B2B', T.b2b], ['B2C', T.b2c]].concat(T.lain ? [['Lainnya', T.lain]] : []).map(([l, n]) => `<div class="kpi"><span>Box ${l}</span><b>${num(n)}</b><small>${fmtPct(T.box ? n / T.box * 100 : null)} dari total</small></div>`).join('')}</div>
+    <div class="kpi"><span>Avg delivery time</span><b>${fromSec(T.maxAvg)}</b><small>rata-rata per batch</small></div>
+    ${[['HG', T.hg], ['BK', T.bk], ['GT', T.gt], ['B2B', T.b2b], ['B2C', T.b2c], ['OFFICE', T.office]].concat(T.lain ? [['Lainnya', T.lain]] : []).map(([l, n]) => `<div class="kpi"><span>Box ${l}</span><b>${num(n)}</b><small>${fmtPct(T.box ? n / T.box * 100 : null)} dari total</small></div>`).join('')}</div>
+  <div class="row" style="justify-content:space-between;margin:4px 0 12px"><h2 style="margin:0;font-size:17px">Grafik per ${P}</h2>
+    <div class="tabs" role="tablist" style="margin:0">${[['branch', 'Per branch'], ['area', 'Per area']].map(([k, l]) => `<button role="tab" aria-selected="${per === k}" data-per="${k}">${l}</button>`).join('')}</div></div>
   <div class="charts">
-    ${chartCard('Box per bisnis', 'Box HG, BK, GT dari sheet Cost.', pieChart([{ l: 'HG', v: T.hg }, { l: 'BK', v: T.bk }, { l: 'GT', v: T.gt }, { l: 'Lainnya', v: T.lain }], 'Box per bisnis'))}
-    ${chartCard('Box per branch', 'Diurutkan dari yang terbanyak.', barChart(perB.filter(x => x.v).sort(desc), num))}
-    ${chartCard('Box per area', 'Diurutkan dari yang terbanyak.', barChart(A(x => x.box).filter(x => x.v).sort(desc), num))}
-    ${chartCard('Cost per box per area', 'Total Cost ÷ Total Box. Termurah di atas.', barChart(A(x => x.box && x.tcost ? x.cpb : null).sort(asc), rupiah, 'i'))}
-    ${chartCard('Complaint per area', 'Kolom Complaint di sheet Cost.', barChart(A(x => x.comp).filter(x => x.v).sort(desc), num, 'b'))}
-    ${chartCard('% complaint per area', 'Complaint ÷ Total Box.', barChart(A(x => x.pComp).sort(desc), x => fmtPct(x, 2), 'b'))}
-    ${chartCard('% late delivery per area', 'Late delivery ÷ Total Box.', barChart(A(x => x.pLate).sort(desc), x => fmtPct(x), 'w'))}
-    ${chartCard('Rata-rata max time per area', 'Paling larut di atas.', barChart(A(x => x.maxAvg).sort(desc), fromSec, 'i'))}
-    ${chartCard('Complaint per kategori', 'Dari raw complaint (detail).', pieChart(byCat, 'Complaint per kategori'))}
+    ${chartCard('Box per bisnis', '', pieChart([{ l: 'HG', v: T.hg }, { l: 'BK', v: T.bk }, { l: 'GT', v: T.gt }, { l: 'Lainnya', v: T.lain }], 'Box per bisnis'))}
+    ${chartCard('Complaint per kategori', '', pieChart(byCat, 'Complaint per kategori'))}
+    ${chartCard('Box per ' + P, '', barChart(A(x => x.box).filter(x => x.v).sort(desc), num))}
+    ${chartCard('Cost per box per ' + P, '', barChart(A(x => x.box && x.tcost ? x.cpb : null).sort(asc), rupiah, 'i'))}
+    ${chartCard('Complaint per ' + P, '', barChart(A(x => x.comp).filter(x => x.v).sort(desc), num, 'b'))}
+    ${chartCard('% complaint per ' + P, '', barChart(A(x => x.pComp).sort(desc), x => fmtPct(x, 2), 'b'))}
+    ${chartCard('Late delivery per ' + P, '', barChart(A(x => x.late).filter(x => x.v).sort(desc), num, 'w'))}
+    ${chartCard('% late delivery per ' + P, '', barChart(A(x => x.pLate).sort(desc), x => fmtPct(x), 'w'))}
+    ${chartCard('Avg delivery time per ' + P, '', barChart(A(x => x.maxAvg).sort(desc), fromSec, 'i'))}
   </div>
   <div class="card" style="margin-top:16px" id="dKurir"></div><div class="card" style="margin-top:16px" id="dComp"></div>`;
+  out.querySelectorAll('[data-per]').forEach(b => b.onclick = () => { DSH.per = b.dataset.per; drawPerforma(); });
   drawKurirTbl(cost); drawCompTbl(comp);
 }
 function drawKurirTbl(cost) {
@@ -497,7 +518,7 @@ function drawKurirTbl(cost) {
     { key: 'box', label: 'Box', num: true, render: r => num(r.box) }, { key: 'hg', label: 'HG', num: true, render: r => num(r.hg) }, { key: 'bk', label: 'BK', num: true, render: r => num(r.bk) }, { key: 'gt', label: 'GT', num: true, render: r => num(r.gt) },
     { key: 'late', label: 'Late', num: true, render: r => num(r.late) },
     { key: 'pLate', label: '% late', num: true, render: r => r.pLate == null ? '—' : `<span class="chip ${r.pLate <= 5 ? 'c-ok' : r.pLate <= 15 ? 'c-warn' : 'c-bad'}">${fmtPct(r.pLate)}</span>` },
-    { key: 'maxAvg', label: 'Rata2 max time', num: true, render: r => fromSec(r.maxAvg) },
+    { key: 'maxAvg', label: 'Avg delivery time', num: true, render: r => fromSec(r.maxAvg) },
     { key: 'comp', label: 'Complaint', num: true, render: r => r.comp ? `<span class="chip c-bad">${num(r.comp)}</span>` : '0' },
     { key: 'pComp', label: '% complaint', num: true, render: r => fmtPct(r.pComp, 2) },
     { key: 'weekly', label: 'Total Weekly', num: true, render: r => rupiah(r.weekly) },
@@ -506,7 +527,7 @@ function drawKurirTbl(cost) {
     { key: 'capai', label: 'Target ' + monthLabel(tm), num: true, render: r => r.capai == null ? '—' : `${num(r.mb)}/${num(r.tg)} <span class="chip ${r.capai >= 100 ? 'c-ok' : r.capai >= 70 ? 'c-warn' : 'c-mute'}">${r.capai.toFixed(0)}%</span>` }
   ];
   const el = $('#dKurir');
-  el.innerHTML = `<h2>Detail per orang</h2><p class="sub">${rows.length} orang (Nama + Branch). Klik panah di judul kolom untuk mengurutkan, klik baris untuk detail per batch.</p>` + dataTable('dk', cols, rows, { sortKey: 'box', sortDir: 'desc', freezeFirst: true, rowAttr: r => `class="click" data-k="${esc(r.k)}" tabindex="0"`, empty: 'Tidak ada data.' });
+  el.innerHTML = `<h2>Detail per orang</h2><p class="sub">${rows.length} baris (Nama + Branch). Klik panah di judul kolom untuk mengurutkan, klik baris untuk detail per batch.</p>` + dataTable('dk', cols, rows, { sortKey: 'box', sortDir: 'desc', freezeFirst: true, pageSize: 50, rowAttr: r => `class="click" data-k="${esc(r.k)}" tabindex="0"`, empty: 'Tidak ada data.' });
   bindDataTable(el, 'dk', () => drawKurirTbl(cost));
   el.querySelectorAll('tr[data-k]').forEach(tr => { const go = () => detailKurir(tr.dataset.k); tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
 }
@@ -522,10 +543,10 @@ function drawCompTbl(comp) {
     { key: 'sesi', label: 'Sesi' }, { key: 'nama_customer', label: 'Customer' }, { key: 'kode_warna', label: 'Kode warna' }, { key: 'keterangan', label: 'Keterangan', wrap: true }
   ];
   const el = $('#dComp');
-  el.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Detail complaint</h2><p class="sub" style="margin:0">${rows.length} complaint dari raw complaint (bisa berbeda dengan total di sheet Cost).</p></div>
+  el.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Detail complaint</h2><p class="sub" style="margin:0">${rows.length} complaint</p></div>
     <div class="row"><label class="f"><span>Dari tanggal</span><input type="date" id="dcDari" value="${DC.dari}"></label><label class="f"><span>Sampai</span><input type="date" id="dcSampai" value="${DC.sampai}"></label>
     <label class="f"><span>Kategori</span><select id="dCat"><option value="">Semua kategori</option>${cats.map(c => opt(c, c, DC.kat)).join('')}</select></label></div></div>` +
-    dataTable('dc', cols, rows, { sortKey: 'tanggal', sortDir: 'desc', maxHeight: 460, empty: 'Tidak ada complaint.' });
+    dataTable('dc', cols, rows, { sortKey: 'tanggal', sortDir: 'desc', maxHeight: 460, pageSize: 50, empty: 'Tidak ada complaint.' });
   bindDataTable(el, 'dc', () => drawCompTbl(comp));
   $('#dCat').onchange = e => { DC.kat = e.target.value; drawCompTbl(comp); };
   $('#dcDari').onchange = e => { DC.dari = e.target.value; drawCompTbl(comp); };
@@ -536,7 +557,7 @@ function detailKurir(k) {
   const any = cost[cost.length - 1] || comp[0]; if (!any) return; const S = ringkas(cost);
   openModal(`${modalHead(any.label, esc(any.jab) + ' · ' + esc(any.areaNama) + ' · ' + esc(any.branchNama) + (any.pid ? '' : ' · belum punya akun'))}
   <div class="kpis" style="margin-top:0"><div class="kpi"><span>Box</span><b>${num(S.box)}</b><small>HG ${num(S.hg)} · BK ${num(S.bk)} · GT ${num(S.gt)}</small></div><div class="kpi"><span>Late</span><b>${num(S.late)}</b><small>${fmtPct(S.pLate)}</small></div><div class="kpi"><span>Complaint</span><b>${num(S.comp)}</b><small>${fmtPct(S.pComp, 2)}</small></div><div class="kpi"><span>Total Weekly</span><b style="font-size:20px">${rupiahShort(S.weekly)}</b></div></div>
-  <h3 style="font-size:15px;margin:6px 0 8px">Per batch</h3><div class="tbl-wrap"><table><thead><tr><th>Bulan</th><th>Batch</th><th>Area</th><th class="num">Box</th><th class="num">HG/BK/GT</th><th class="num">Late</th><th class="num">Max time</th><th class="num">Complaint</th><th class="num">Total Weekly</th><th class="num">Total Cost</th></tr></thead><tbody>
+  <h3 style="font-size:15px;margin:6px 0 8px">Per batch</h3><div class="tbl-wrap"><table><thead><tr><th>Bulan</th><th>Batch</th><th>Area</th><th class="num">Box</th><th class="num">HG/BK/GT</th><th class="num">Late</th><th class="num">Avg delivery time</th><th class="num">Complaint</th><th class="num">Total Weekly</th><th class="num">Total Cost</th></tr></thead><tbody>
   ${cost.map(c => `<tr><td>${monthLabel(c.bulan)}</td><td>${esc(c.batch)}</td><td>${esc(c.areaNama)}</td><td class="num">${num(c.total_box)}</td><td class="num">${num(c.box_hg)}/${num(c.box_bk)}/${num(c.box_gt)}</td><td class="num">${num(c.late_delivery)}</td><td class="num">${c.max_time ? c.max_time.slice(0, 5) : '—'}</td><td class="num">${num(c.complaint)}</td><td class="num">${rupiah(c.total_weekly)}</td><td class="num">${rupiah(c.total_cost)}</td></tr>`).join('') || '<tr><td colspan="10" class="empty">Tidak ada data cost.</td></tr>'}</tbody></table></div>
   <h3 style="font-size:15px;margin:16px 0 8px">Detail complaint</h3>${comp.length ? `<div class="tbl-wrap"><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Sesi</th><th>Customer</th><th>Keterangan</th></tr></thead><tbody>${comp.sort((a, b) => b.tanggal.localeCompare(a.tanggal)).map(c => `<tr><td>${fmtDate(c.tanggal)}</td><td><span class="chip c-bad">${esc(c.tipe || '—')}</span></td><td>${esc(c.sesi || '')}</td><td>${esc(c.nama_customer || '')}</td><td class="wrap">${esc(c.keterangan || '')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Tidak ada detail complaint.</p>'}`);
 }
@@ -548,7 +569,7 @@ function pageAkun(v) {
     <label class="f grow"><span>Cari</span><input id="kQ" value="${esc(KS.q)}" placeholder="Nama, username, atau email"></label>
     <label class="f"><span>Area</span>${areaSelect('kArea', KS.area, { ids: D.areas.map(a => a.id) }).replace('<option value="">Semua area</option>', '<option value="">Semua area</option><option value="-">Belum ada area</option>')}</label>
     <label class="f"><span>Status</span><select id="kSt">${[['aktif', 'Aktif'], ['nonaktif', 'Nonaktif'], ['', 'Semua']].map(([k, l]) => opt(k, l, KS.status)).join('')}</select></label>
-    ${R.admin ? '<button class="btn-primary" id="kAdd">Tambah kurir</button>' : ''}</div>
+    <button class="btn-soft" id="kXls">Unduh Excel</button>${R.admin ? '<button class="btn-primary" id="kAdd">Tambah kurir</button>' : ''}</div>
     ${R.admin ? '' : '<p class="small muted" style="margin:10px 0 0">Anda bisa melihat daftar kurir. Pembuatan dan perubahan akun dilakukan Admin Delivery.</p>'}</div>
   <div class="card" id="kOut"></div>`;
   const draw = () => {
@@ -563,13 +584,18 @@ function pageAkun(v) {
       { key: 'aktif', label: 'Status', sort: r => r.aktif ? 1 : 0, render: r => r.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>' },
       ...(R.admin ? [{ key: 'aksi', label: '', sort: () => 0, render: r => `<span class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn-soft btn-sm" data-edit="${r.id}">Ubah</button><button class="btn-sm" data-reset="${r.id}">Reset password</button><button class="btn-sm ${r.aktif ? 'btn-danger' : ''}" data-akt="${r.id}">${r.aktif ? 'Nonaktifkan' : 'Aktifkan'}</button></span>` }] : [])
     ];
-    $('#kOut').innerHTML = `<p class="sub">${rows.length} kurir. Nama harus sama persis dengan di spreadsheet SLA, complaint, dan cost.</p>` + dataTable('kurir', cols, rows, { sortKey: 'nama', freezeFirst: true, maxHeight: 620, empty: 'Belum ada kurir.' });
+    $('#kOut').innerHTML = `<p class="sub">${rows.length} kurir. Nama harus sama persis dengan di spreadsheet SLA, complaint, dan cost.</p>` + dataTable('kurir', cols, rows, { sortKey: 'nama', freezeFirst: true, maxHeight: 640, pageSize: 50, empty: 'Belum ada kurir.' });
+    KS.rows = rows;
     bindDataTable($('#kOut'), 'kurir', draw);
     $('#kOut').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => kurirForm(b.dataset.edit, draw));
     $('#kOut').querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { const p = person(b.dataset.reset); if (!confirm('Reset password ' + p.nama + '?')) return; run(b, async () => { const r = await fnAkun({ action: 'reset_password', id: p.id }); showPassword('Password baru', p.nama, p.username + (p.email ? ' atau ' + p.email : ''), r.password_sementara); }); });
     $('#kOut').querySelectorAll('[data-akt]').forEach(b => b.onclick = () => { const p = person(b.dataset.akt), was = p.aktif; if (was && !confirm('Nonaktifkan ' + p.nama + '? Ia langsung tidak bisa login.')) return; run(b, async () => { await fnAkun({ action: 'set_aktif', id: p.id, aktif: !was }); await loadAll(); toast(p.nama + (was ? ' dinonaktifkan.' : ' diaktifkan.')); draw(); }); });
   };
-  $('#kQ').oninput = draw; $('#kArea').onchange = draw; $('#kSt').onchange = draw;
+  $('#kQ').oninput = () => { if (TBL.kurir) TBL.kurir.page = 0; draw(); }; $('#kArea').onchange = () => { if (TBL.kurir) TBL.kurir.page = 0; draw(); }; $('#kSt').onchange = () => { if (TBL.kurir) TBL.kurir.page = 0; draw(); };
+  $('#kXls').onclick = () => { const rows = KS.rows || []; if (!rows.length) return toast('Tidak ada data.', true);
+    XLSX_LITE.download(`Data kurir ${TODAY}.xlsx`, [{ name: 'Kurir', columns: [{ label: 'Nama', width: 26 }, { label: 'Username', width: 22 }, { label: 'Email', width: 26 }, { label: 'Branch', width: 14 }, { label: 'Area', width: 14 }, { label: 'Kontrak', width: 11 }, { label: 'Status', width: 10 }, { label: 'Ditugaskan sejak', type: 'date', width: 15 }],
+      rows: rows.map(r => { const pg = D.penugasan.find(x => x.profile_id === r.id && !x.selesai); return [r.nama, r.username, r.email || '', branch(area(r.area_id).branch_id).nama || '', r.areaNama, r.kontrak || '', r.aktif ? 'Aktif' : 'Nonaktif', pg ? pg.mulai : null]; }) }]);
+    toast('Excel diunduh: ' + rows.length + ' kurir.'); };
   if ($('#kAdd')) $('#kAdd').onclick = () => kurirForm(null, draw);
   draw();
 }
@@ -700,7 +726,7 @@ async function absenRekap() {
     const ses = kurirSessions(AR.date), ids = AR.area ? [AR.area] : myAreaIds();
     const ks = kurirList().filter(k => ids.includes(areaOf(k.id)));
     if (!ses.length) { $('#arOut').innerHTML = '<div class="empty">Tidak ada sesi kurir pada tanggal ini.</div>'; return; }
-    const abs = ks.length ? await q(sb.from('attendance').select('*').eq('tanggal', AR.date).in('profile_id', ks.map(k => k.id))) : [];
+    const abs = ks.length ? await inChunks(ks.map(k => k.id), ids => sb.from('attendance').select('*').eq('tanggal', AR.date).in('profile_id', ids).order('id')) : [];
     const cnt = { Hadir: 0, Izin: 0, Sakit: 0, Tidak: 0 };
     const rows = ks.map(k => `<tr><td><b>${esc(k.nama)}</b></td><td>${esc(area(areaOf(k.id)).nama)}</td>${ses.map(s => { const a = abs.find(x => x.profile_id === k.id && x.sesi === s); if (!a) { cnt.Tidak++; return `<td><span class="chip c-bad">${AR.date === TODAY ? 'Belum absen' : 'Tidak absen'}</span>${R.admin ? ` <button class="btn-sm" data-ijin="${k.id}|${s}">Izin/Sakit</button>` : ''}</td>`; } cnt[a.status]++; return `<td><span class="chip ${statusChip(a.status)}">${a.status === 'Hadir' ? a.jam.slice(0, 5) : a.status}</span>${a.foto_path ? ` <button class="btn-sm" data-foto="${esc(a.foto_path)}" data-n="${esc(k.nama)} · ${s}">Foto</button>` : ''}${a.point_id ? `<span class="ref small muted">${esc((D.points.find(t => t.id === a.point_id) || {}).nama || '')} · ${a.jarak_m} m</span>` : ''}${a.catatan ? `<span class="ref small muted">${esc(a.catatan)}</span>` : ''}</td>`; }).join('')}</tr>`).join('');
     $('#arOut').innerHTML = `<div class="legend" style="margin:0 0 10px"><span class="chip c-ok">Hadir ${cnt.Hadir}</span><span class="chip c-info">Izin ${cnt.Izin}</span><span class="chip c-info">Sakit ${cnt.Sakit}</span><span class="chip c-bad">Tidak absen ${cnt.Tidak}</span></div>
@@ -779,7 +805,7 @@ async function hitungAbsen() {
   const ids = myAreaIds(), qq = LA.area;
   const orang = D.people.filter(p => p.aktif && (!LA.jab || p.position_id === LA.jab) && (p.position_id === 'kurir' ? (ids.includes(areaOf(p.id)) && (!qq || areaOf(p.id) === qq)) : (!qq && (R.staf || p.id === ME.id))));
   const pids = orang.map(p => p.id); let abs = [];
-  for (let i = 0; i < pids.length; i += 200) abs = abs.concat(await fetchAll(() => sb.from('attendance').select('profile_id,tanggal,sesi,status,jam,point_id,jarak_m,catatan,sumber').in('profile_id', pids.slice(i, i + 200)).gte('tanggal', LA.dari).lte('tanggal', LA.sampai).order('tanggal')));
+  abs = await inChunks(pids, x => sb.from('attendance').select('id,profile_id,tanggal,sesi,status,jam,point_id,jarak_m,catatan,sumber').in('profile_id', x).gte('tanggal', LA.dari).lte('tanggal', LA.sampai).order('id'));
   const idx = {}; abs.forEach(a => idx[a.profile_id + '|' + a.tanggal + '|' + a.sesi] = a);
   const detail = [];
   orang.forEach(p => {
@@ -833,6 +859,93 @@ async function absenLaporan() {
   });
 }
 
+/* ---------- Bantu: query dalam potongan kecil (hindari URL terlalu panjang → "Failed to fetch") ---------- */
+async function inChunks(ids, make, size = 60) {
+  let out = [];
+  for (let i = 0; i < ids.length; i += size) out = out.concat(await fetchAll(() => make(ids.slice(i, i + size))));
+  return out;
+}
+const keyOf = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function parseCSV(text) {
+  text = text.replace(/^\uFEFF/, '');
+  const first = text.split(/\r?\n/)[0] || '', cnt = c => (first.match(new RegExp('\\' + c, 'g')) || []).length;
+  const d = cnt('\t') > cnt(',') && cnt('\t') > cnt(';') ? '\t' : cnt(';') > cnt(',') ? ';' : ',';
+  const rows = []; let row = [], f = '', qt = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (qt) { if (ch === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else qt = false; } else f += ch; }
+    else if (ch === '"') qt = true; else if (ch === d) { row.push(f); f = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+    else f += ch;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ''));
+}
+
+/* ---------- Tanya jawab LMS (Ask Trainer) ---------- */
+let QTab = 'open';
+async function pageTanya(v) {
+  v.innerHTML = '<div class="card empty">Memuat pertanyaan…</div>';
+  const [qs, ans] = await Promise.all([
+    fetchAll(() => sb.from('questions').select('id,name,role,question,status,created_at').order('created_at', { ascending: false })),
+    fetchAll(() => sb.from('answers').select('id,question_id,answer,answered_by,created_at').order('created_at'))
+  ]);
+  const byQ = {}; ans.forEach(a => (byQ[a.question_id] = byQ[a.question_id] || []).push(a));
+  const sudah = q => (byQ[q.id] || []).length > 0;
+  const list = qs.filter(q => QTab === 'all' || (QTab === 'open' ? !sudah(q) : sudah(q)));
+  v.innerHTML = `<div class="tabs" role="tablist">${[['open', 'Belum dijawab (' + qs.filter(q => !sudah(q)).length + ')'], ['done', 'Sudah dijawab (' + qs.filter(sudah).length + ')'], ['all', 'Semua']].map(([k, l]) => `<button role="tab" aria-selected="${QTab === k}" data-t="${k}">${l}</button>`).join('')}</div>
+  ${list.map(q => `<div class="card"><div class="row" style="justify-content:space-between"><div><b>${esc(q.name)}</b> <span class="chip c-mute">${esc(q.role || '—')}</span></div><span class="small muted">${fmtDT(q.created_at)}</span></div>
+    <p style="margin:10px 0;white-space:pre-wrap">${esc(q.question || '')}</p>
+    ${(byQ[q.id] || []).map(a => `<div class="note" style="margin:8px 0"><div class="row" style="justify-content:space-between"><b>${esc(a.answered_by || 'Trainer')}</b><span class="small">${fmtDT(a.created_at)} ${a.answered_by === ME.nama ? `<button class="btn-sm" data-del="${a.id}" style="margin-left:6px">Hapus</button>` : ''}</span></div><div style="white-space:pre-wrap;margin-top:4px">${esc(a.answer || '')}</div></div>`).join('')}
+    <div class="row" style="align-items:flex-end;margin-top:8px"><label class="f grow"><span>Jawaban Anda</span><textarea rows="2" data-q="${q.id}" placeholder="Tulis jawaban…"></textarea></label><button class="btn-primary" data-send="${q.id}">Kirim jawaban</button></div></div>`).join('') || '<div class="card empty">Tidak ada pertanyaan.</div>'}`;
+  v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { QTab = b.dataset.t; pageTanya(v); });
+  v.querySelectorAll('[data-send]').forEach(b => b.onclick = () => run(b, async () => {
+    const id = b.dataset.send, t = v.querySelector(`textarea[data-q="${id}"]`).value.trim();
+    if (!t) throw new Error('Tulis jawabannya dulu.');
+    await q(sb.from('answers').insert({ question_id: id, answer: t, answered_by: ME.nama }));
+    await sb.from('questions').update({ status: 'answered' }).eq('id', id);
+    toast('Jawaban terkirim. Penanya bisa melihatnya di LMS → Ask Trainer.'); pageTanya(v);
+  }));
+  v.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (!confirm('Hapus jawaban ini?')) return; run(b, async () => { await q(sb.from('answers').delete().eq('id', b.dataset.del)); toast('Jawaban dihapus.'); pageTanya(v); }); });
+}
+
+/* ---------- Tarikan reimbursement ---------- */
+async function unduhReimburse(dari, sampai) {
+  if (!dari || !sampai || dari > sampai) throw new Error('Tanggal "dari" harus sebelum "sampai".');
+  const rows = await fetchAll(() => sb.from('dlv_reimburse').select('*').gte('tanggal', dari).lte('tanggal', sampai).order('tanggal'));
+  if (!rows.length) throw new Error('Tidak ada reimbursement di rentang ini.');
+  XLSX_LITE.download(`Reimbursement ${dari} sd ${sampai}.xlsx`, [
+    { name: 'Reimbursement', columns: [{ label: 'Tanggal klaim', type: 'date', width: 13 }, { label: 'Sesi', width: 9 }, { label: 'Nama', width: 24 }, { label: 'Branch', width: 13 }, { label: 'Area', width: 13 }, { label: 'Jenis', width: 10 }, { label: 'Tujuan', width: 20 }, { label: 'Jarak (km)', type: 'num', width: 10 }, { label: 'Customer terjauh', width: 20 }, { label: 'Status', width: 10 }, { label: 'Nominal', type: 'rp', width: 13 }, { label: 'Alasan tolak', width: 28 }, { label: 'Diproses oleh', width: 20 }, { label: 'Diajukan', width: 17 }, { label: 'Diproses', width: 17 }],
+      rows: rows.map(r => { const a = area(areaOf(r.profile_id)); return [r.tanggal, r.sesi, person(r.profile_id).nama || '', branch(a.branch_id).nama || '', a.nama || '', RT[r.tipe], r.tujuan || '', r.jarak_km != null ? Number(r.jarak_km) : null, r.cust_terjauh || '', r.status, r.nominal, r.alasan_tolak || '', person(r.diproses_oleh).nama || '', fmtDT(r.created_at), r.diproses_at ? fmtDT(r.diproses_at) : '']; }) },
+    { name: 'Rekap per orang', columns: [{ label: 'Nama', width: 24 }, { label: 'Area', width: 14 }, { label: 'Estafet', type: 'rp', width: 13 }, { label: 'Parkir', type: 'rp', width: 13 }, { label: 'Jarak', type: 'rp', width: 13 }, { label: 'Total approved', type: 'rp', width: 15 }, { label: 'Waiting', type: 'num', width: 9 }, { label: 'Rejected', type: 'num', width: 9 }],
+      rows: Object.values(rows.reduce((m, r) => { const k = r.profile_id, o = m[k] = m[k] || { n: person(k).nama || '', a: area(areaOf(k)).nama || '', Estafet: 0, Parkir: 0, Jarak: 0, w: 0, x: 0 }; if (r.status === 'Approved') o[r.tipe] += r.nominal || 0; if (r.status === 'Waiting') o.w++; if (r.status === 'Rejected') o.x++; return m; }, {})).map(o => [o.n, o.a, o.Estafet, o.Parkir, o.Jarak, o.Estafet + o.Parkir + o.Jarak, o.w, o.x]) }
+  ]);
+  toast('Excel diunduh: ' + rows.length + ' pengajuan.');
+}
+
+/* ---------- Import target box dari CSV ---------- */
+async function imporTarget(file, bulanDefault) {
+  const raw = parseCSV(await file.text()); if (raw.length < 2) throw new Error('File kosong.');
+  const head = raw[0].map(keyOf), col = al => head.findIndex(h => al.includes(h));
+  const iN = col(['nama', 'name']), iB = col(['branch', 'cabang']), iM = col(['bulan', 'month']), iT = col(['target', 'targetbox']);
+  if (iN < 0 || iT < 0) throw new Error('Kolom "nama" dan "target" wajib ada. Kolom opsional: branch, bulan (2610 atau 2026-10).');
+  const akun = {}; kurirList({ semua: true }).forEach(k => { const a = area(areaOf(k.id)); (akun[normName(k.nama)] = akun[normName(k.nama)] || []).push({ id: k.id, br: normName(branch(a.branch_id).nama || '') }); });
+  const bln = v => { const s = String(v || '').trim(); let m = s.match(/^(\d{2})(\d{2})$/); if (m) return `20${m[1]}-${m[2]}-01`; m = s.match(/^(\d{4})-(\d{1,2})/); if (m) return `${m[1]}-${m[2].padStart(2, '0')}-01`; return null; };
+  const ok = new Map(), gagal = [];
+  raw.slice(1).forEach((r, i) => {
+    const nama = String(r[iN] || '').trim(), br = iB >= 0 ? normName(r[iB]) : '', t = Number(String(r[iT] || '').replace(/[^0-9]/g, '')), b = iM >= 0 && String(r[iM] || '').trim() ? bln(r[iM]) : bulanDefault + '-01';
+    const c = (akun[normName(nama)] || []).filter(x => !br || x.br === br);
+    if (!nama || !String(r[iT] || '').trim()) return gagal.push([i + 2, nama, 'nama/target kosong']);
+    if (!b) return gagal.push([i + 2, nama, 'format bulan salah']);
+    if (!c.length) return gagal.push([i + 2, nama, br ? 'tidak ada akun kurir dengan nama + branch ini' : 'tidak ada akun kurir dengan nama ini']);
+    if (c.length > 1) return gagal.push([i + 2, nama, 'nama ada di beberapa branch, isi kolom branch']);
+    ok.set(c[0].id + '|' + b, { profile_id: c[0].id, bulan: b, target: t });
+  });
+  const rows = [...ok.values()];
+  for (let i = 0; i < rows.length; i += 500) await q(sb.from('dlv_target_box').upsert(rows.slice(i, i + 500)));
+  return { masuk: rows.length, gagal };
+}
+
 /* ---------- Penilaian ---------- */
 const PEN_OPT = { lunch: ['Hadir', 'Alpa', 'Izin', 'Sakit'], dinner: ['Hadir', 'Alpa', 'Izin', 'Sakit'], tas: ['Lengkap', 'Belum Punya', 'Kondisi Buruk'], jaket: ['Lengkap', 'Belum Punya', 'Kondisi Buruk'], helm: ['Lengkap', 'Belum Punya', 'Kondisi Buruk'], sepatu: ['Lengkap', 'Belum Punya', 'Kondisi Buruk'] };
 const PEN_KEYS = Object.keys(PEN_OPT);
@@ -856,7 +969,8 @@ async function drawPenilaian() {
   const ses = kurirSessions(d); if (!ses.length) { out.innerHTML = '<div class="card empty">Tidak ada sesi pada tanggal ini.</div>'; return; }
   out.innerHTML = '<div class="card empty">Memuat…</div>';
   const ks = kurirList().filter(k => PS.areas.includes(areaOf(k.id)));
-  const [ex, abs] = ks.length ? await Promise.all([q(sb.from('dlv_penilaian').select('*').eq('tanggal', d).in('profile_id', ks.map(k => k.id))), q(sb.from('attendance').select('profile_id,sesi,status,jam').eq('tanggal', d).in('profile_id', ks.map(k => k.id)))]) : [[], []];
+  const ids = ks.map(k => k.id);
+  const [ex, abs] = ks.length ? await Promise.all([inChunks(ids, x => sb.from('dlv_penilaian').select('*').eq('tanggal', d).in('profile_id', x).order('id')), inChunks(ids, x => sb.from('attendance').select('profile_id,sesi,status,jam').eq('tanggal', d).in('profile_id', x).order('id'))]) : [[], []];
   const ref = (pid, key) => { const s = key === 'lunch' ? ses[0] : ses[1]; if (!s) return { label: 'Tidak ada sesi', a: undefined, s }; const a = abs.find(x => x.profile_id === pid && x.sesi === s); return { s, a, label: a ? (a.status === 'Hadir' ? s + ' ' + a.jam.slice(0, 5) : a.status) : (d === TODAY ? 'Belum absen' : 'Tidak absen') }; };
   const refHtml = (val, r) => { if (!r.s) return ''; const mm = mismatch(val, r.a); return mm ? `<span class="chip c-warn" title="${esc(mm)}">Tidak cocok: ${esc(r.label)}</span>` : `<span class="muted">Absen: ${esc(r.label)}</span>`; };
   out.innerHTML = `<div class="card">${PS.areas.map(aid => {
@@ -871,7 +985,7 @@ async function drawPenilaian() {
     const rows = [...out.querySelectorAll('tr[data-p]')].map(tr => { const r = { tanggal: d, profile_id: tr.dataset.p, area_id: tr.dataset.a }; tr.querySelectorAll('select').forEach(s => r[s.dataset.key] = s.value || null); return r; })
       .filter(r => PEN_KEYS.some(k => r[k]) || ex.some(e => e.profile_id === r.profile_id));
     if (!rows.length) throw new Error('Belum ada yang diisi.');
-    await q(sb.from('dlv_penilaian').upsert(rows, { onConflict: 'tanggal,profile_id' }));
+    for (let i = 0; i < rows.length; i += 300) await q(sb.from('dlv_penilaian').upsert(rows.slice(i, i + 300), { onConflict: 'tanggal,profile_id' }));
     toast(`Penilaian tersimpan. ${rows.filter(r => PEN_KEYS.every(k => r[k])).length} dari ${rows.length} lengkap.`); drawPenilaian();
   });
 }
@@ -884,7 +998,7 @@ function pageLaporan(v) {
 async function lapStatus() {
   const mon = mondayOf(TODAY), dates = []; for (let d = mon; d <= TODAY; d = addDays(d, 1)) if (kurirSessions(d).length) dates.push(d);
   const ids = myAreaIds(), ks = kurirList().filter(k => ids.includes(areaOf(k.id)));
-  const pen = await q(sb.from('dlv_penilaian').select('*').gte('tanggal', mon).lte('tanggal', TODAY));
+  const pen = await fetchAll(() => sb.from('dlv_penilaian').select('*').gte('tanggal', mon).lte('tanggal', TODAY).order('id'));
   $('#lOut').innerHTML = `<div class="card"><h2>Minggu ini</h2><p class="sub">${fmtDate(mon)} – ${fmtDate(addDays(mon, 6))}. Angka = kurir dinilai lengkap / total kurir.</p><div class="tbl-wrap"><table class="matrix"><thead><tr><th>Area</th>${dates.map(d => `<th>${fmtShort(d)}</th>`).join('')}</tr></thead><tbody>
   ${ids.map(aid => { const k = ks.filter(x => areaOf(x.id) === aid); return `<tr><td><b>${esc(area(aid).nama)}</b></td>${dates.map(d => { const ps = pen.filter(p => p.tanggal === d && p.area_id === aid), full = k.filter(x => { const p = ps.find(y => y.profile_id === x.id); return p && PEN_KEYS.every(z => p[z]); }).length; const st = k.length && full >= k.length ? 'd-done' : ps.length ? 'd-prog' : 'd-not'; return `<td><span class="dot ${st}"></span> <span class="small">${full}/${k.length}</span></td>`; }).join('')}</tr>`; }).join('') || '<tr><td class="empty">Tidak ada area.</td></tr>'}
   </tbody></table></div><div class="legend" style="margin-top:12px"><span><span class="dot d-done"></span> Selesai</span><span><span class="dot d-prog"></span> Sedang berjalan</span><span><span class="dot d-not"></span> Belum</span></div></div>`;
@@ -894,7 +1008,7 @@ async function lapLihat() {
   $('#lOut').innerHTML = `<div class="card"><div class="row"><label class="f"><span>Tanggal</span><input type="date" id="lDate" value="${LS.date}" max="${TODAY}"></label><label class="f"><span>Area</span>${areaSelect('lArea', LS.area)}</label></div><div id="lTbl" style="margin-top:14px"></div></div>`;
   const draw = async () => {
     LS.date = $('#lDate').value; LS.area = $('#lArea').value;
-    const rows = (await q(sb.from('dlv_penilaian').select('*').eq('tanggal', LS.date))).filter(r => !LS.area || r.area_id === LS.area);
+    const rows = (await fetchAll(() => sb.from('dlv_penilaian').select('*').eq('tanggal', LS.date).order('id'))).filter(r => !LS.area || r.area_id === LS.area);
     $('#lTbl').innerHTML = rows.length ? `<div class="tbl-wrap"><table><thead><tr><th>Area</th><th>Kurir</th>${PEN_KEYS.map(k => `<th>${k[0].toUpperCase() + k.slice(1)}</th>`).join('')}<th>Dinilai oleh</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(area(r.area_id).nama)}</td><td><b>${esc(person(r.profile_id).nama || '—')}</b></td>${PEN_KEYS.map(k => `<td>${r[k] ? `<span class="chip ${statusChip(r[k])}">${r[k]}</span>` : '—'}</td>`).join('')}<td class="small">${esc(person(r.dinilai_oleh).nama || '—')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Belum ada penilaian untuk tanggal dan area ini.</div>';
   };
   $('#lDate').onchange = draw; $('#lArea').onchange = draw; await draw();
@@ -902,10 +1016,10 @@ async function lapLihat() {
 
 /* ---------- Reimbursement ---------- */
 let RTab = 'Waiting';
-const RT = { Estafet: 'Estafet', Parkir: 'Parking', Jarak: 'Distance' };
+const RT = { Estafet: 'Estafet', Parkir: 'Parkir', Jarak: 'Jarak' };
 async function pageReimburse(v) {
   v.innerHTML = '<div class="card empty">Loading…</div>';
-  const all = await q(sb.from('dlv_reimburse').select('*').order('created_at', { ascending: false }).limit(1000));
+  const all = await fetchAll(() => sb.from('dlv_reimburse').select('*').gte('created_at', addDays(TODAY, -120)).order('created_at', { ascending: false }));
   const cnt = s => all.filter(r => r.status === s).length;
   const rows = all.filter(r => r.status === RTab).map(r => ({ ...r, nama: person(r.profile_id).nama || '—', areaNama: area(areaOf(r.profile_id)).nama || '—', tipeNama: RT[r.tipe] }));
   const cols = [
@@ -916,10 +1030,12 @@ async function pageReimburse(v) {
     { key: 'nominal', label: 'Amount', num: true, render: r => r.nominal != null ? rupiah(r.nominal) : '—' }
   ];
   v.innerHTML = `${R.admin ? '' : '<div class="note">View only. Approvals are handled by the Delivery Admin.</div>'}
+  <div class="card"><div class="row"><label class="f"><span>Claim date from</span><input type="date" id="rxDari" value="${monthKey(TODAY)}-01"></label><label class="f"><span>To</span><input type="date" id="rxSampai" value="${TODAY}"></label><button class="btn-soft" id="rxXls">Download Excel</button></div></div>
   <div class="tabs" role="tablist">${['Waiting', 'Approved', 'Rejected'].map(s => `<button role="tab" aria-selected="${RTab === s}" data-t="${s}">${s} (${cnt(s)})</button>`).join('')}</div>
-  <div class="card">${dataTable('reimb', cols, rows, { sortKey: 'created_at', sortDir: 'desc', rowAttr: r => `class="click" data-r="${r.id}" tabindex="0"`, empty: 'No ' + RTab.toLowerCase() + ' requests.' })}
+  <div class="card">${dataTable('reimb', cols, rows, { sortKey: 'created_at', sortDir: 'desc', pageSize: 50, rowAttr: r => `class="click" data-r="${r.id}" tabindex="0"`, empty: 'No ' + RTab.toLowerCase() + ' requests.' })}
   ${RTab === 'Approved' ? `<p class="small muted" style="margin:10px 0 0">Total approved: <b>${rupiah(rows.reduce((a, r) => a + (r.nominal || 0), 0))}</b></p>` : ''}</div>`;
   v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { RTab = b.dataset.t; pageReimburse(v); });
+  $('#rxXls').onclick = () => run($('#rxXls'), () => unduhReimburse($('#rxDari').value, $('#rxSampai').value));
   bindDataTable(v, 'reimb', () => pageReimburse(v));
   v.querySelectorAll('tr[data-r]').forEach(tr => { const go = () => reimburseDetail(all.find(r => r.id === tr.dataset.r), all, v); tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
 }
@@ -1000,7 +1116,7 @@ function setArea_() {
   });
 }
 function setTitik() {
-  const berlaku = t => t.area_id ? 'Area ' + esc(area(t.area_id).nama) : t.division_id ? 'Semua ' + (t.division_id === 'DLV' ? 'Delivery' : esc(t.division_id)) : 'Semua divisi';
+  const berlaku = t => t.area_id ? 'Area ' + esc(area(t.area_id).nama) : t.division_id ? 'Semua ' + (t.division_id === 'DLV' ? 'Delivery' : esc(t.division_id)) : 'All divisi';
   $('#sOut').innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><div><h2>Titik absensi</h2><p class="sub" style="margin:0">Absen sah jika posisi dalam radius salah satu titik. Kurir memakai titik areanya dan titik umum; korlap & staf memakai titik umum.</p></div><button class="btn-primary" id="tkAdd">Tambah titik</button></div>
   <div class="tbl-wrap" style="margin-top:14px"><table><thead><tr><th>Nama titik</th><th>Berlaku untuk</th><th>Koordinat</th><th class="num">Radius</th><th>Status</th><th></th></tr></thead><tbody>
   ${D.points.map(t => `<tr><td><b>${esc(t.nama)}</b></td><td>${berlaku(t)}</td><td class="small"><a href="https://www.google.com/maps?q=${t.lat},${t.lng}" target="_blank" rel="noopener">${(+t.lat).toFixed(5)}, ${(+t.lng).toFixed(5)}</a></td><td class="num">${t.radius_m} m</td><td>${t.aktif ? '<span class="chip c-ok">Aktif</span>' : '<span class="chip c-mute">Nonaktif</span>'}</td><td><button class="btn-soft btn-sm" data-tk="${t.id}">Ubah</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Belum ada titik.</td></tr>'}
@@ -1010,7 +1126,7 @@ function setTitik() {
     const scope = t.area_id ? t.area_id : t.division_id ? 'DLV' : 'ALL';
     openModal(`${modalHead(id ? 'Ubah titik' : 'Tambah titik', 'Koordinat bisa diambil dari Google Maps (klik kanan pada lokasi) atau dengan berdiri di lokasi lalu pakai lokasi saat ini.')}
     <div class="form-grid"><label class="f"><span>Nama titik</span><input id="tkNama" value="${esc(t.nama)}" placeholder="contoh: Hub PIK 1"></label>
-      <label class="f"><span>Berlaku untuk</span><select id="tkScope">${opt('DLV', 'Semua Delivery (kurir & staf)', scope)}${opt('ALL', 'Semua divisi', scope)}${D.areas.map(a => opt(a.id, 'Kurir area ' + a.nama + ' (' + (branch(a.branch_id).nama || '') + ')', scope)).join('')}</select></label>
+      <label class="f"><span>Berlaku untuk</span><select id="tkScope">${opt('DLV', 'Semua Delivery (kurir & staf)', scope)}${opt('ALL', 'All divisi', scope)}${D.areas.map(a => opt(a.id, 'Kurir area ' + a.nama + ' (' + (branch(a.branch_id).nama || '') + ')', scope)).join('')}</select></label>
       <label class="f"><span>Latitude</span><input id="tkLat" inputmode="decimal" value="${t.lat}"></label><label class="f"><span>Longitude</span><input id="tkLng" inputmode="decimal" value="${t.lng}"></label>
       <label class="f"><span>Radius (meter)</span><input id="tkRad" type="number" min="20" max="1000" step="10" value="${t.radius_m}"></label>
       <label class="f"><span>Status</span><select id="tkAkt">${opt('1', 'Aktif', t.aktif ? '1' : '0')}${opt('0', 'Nonaktif', t.aktif ? '1' : '0')}</select></label></div>
@@ -1032,15 +1148,21 @@ function setTitik() {
 const TS = { bulan: monthKey(TODAY) };
 async function setTarget() {
   const m0 = TS.bulan + '-01', months = [monthKey(addDays(monthKey(TODAY) + '-01', -1)), monthKey(TODAY), monthKey(addDays(monthKey(TODAY) + '-01', 32))];
-  const over = await q(sb.from('dlv_target_box').select('*').eq('bulan', m0)), def = k => (D.targetDefault.find(x => x.kontrak === k) || {}).target || 0;
+  const over = await fetchAll(() => sb.from('dlv_target_box').select('*').eq('bulan', m0).order('profile_id')), def = k => (D.targetDefault.find(x => x.kontrak === k) || {}).target || 0;
   const ks = kurirList().sort((a, b) => a.nama.localeCompare(b.nama));
   $('#sOut').innerHTML = `<div class="card"><h2>Target box bulanan</h2><p class="sub">Default berlaku untuk semua kurir sesuai kontrak. Isi target khusus hanya untuk yang berbeda.</p>
+  <div class="row" style="margin-bottom:12px"><label class="f grow"><span>Import target dari CSV (kolom: nama, target; opsional: branch, bulan)</span><input type="file" id="tCsv" accept=".csv,text/csv,text/plain"></label><button class="btn-soft" id="tTpl">Unduh contoh CSV</button></div>
   <div class="row"><label class="f"><span>Bulan</span><select id="tBulan">${months.map(m => opt(m, monthLabel(m), TS.bulan)).join('')}</select></label>
   ${['Full Time', 'Part Time'].map(k => `<label class="f"><span>Default ${k}</span><input type="number" min="0" step="10" data-def="${k}" value="${def(k)}" style="width:130px"></label>`).join('')}</div>
   <div class="tbl-wrap" style="max-height:460px;overflow:auto;margin-top:14px"><table><thead><tr><th>Kurir</th><th>Area</th><th>Kontrak</th><th class="num">Default</th><th>Target khusus ${monthLabel(TS.bulan)}</th></tr></thead><tbody>
   ${ks.map(k => { const o = over.find(x => x.profile_id === k.id); return `<tr><td><b>${esc(k.nama)}</b></td><td>${esc(area(areaOf(k.id)).nama || '—')}</td><td>${esc(k.kontrak || '—')}</td><td class="num">${def(k.kontrak)}</td><td><input type="number" min="0" step="10" data-t="${k.id}" value="${o ? o.target : ''}" placeholder="pakai default" style="width:140px"></td></tr>`; }).join('') || '<tr><td colspan="5" class="empty">Belum ada kurir.</td></tr>'}
   </tbody></table></div><div class="actions"><button class="btn-primary" id="tSave">Simpan target</button></div></div>`;
   $('#tBulan').onchange = e => { TS.bulan = e.target.value; setTarget(); };
+  $('#tTpl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['nama,branch,bulan,target\nAde Ferdiansyah,CK Kapuk,' + TS.bulan.slice(2, 4) + TS.bulan.slice(5, 7) + ',650\n'], { type: 'text/csv' })); a.download = 'contoh-target.csv'; a.click(); };
+  $('#tCsv').onchange = e => { const f = e.target.files[0]; if (!f) return; run(null, async () => {
+    const r = await imporTarget(f, TS.bulan); await setTarget();
+    if (r.gagal.length) openModal(`${modalHead('Import target', r.masuk + ' target masuk, ' + r.gagal.length + ' baris tidak masuk')}<div class="tbl-wrap" style="max-height:360px"><table><thead><tr><th>Baris</th><th>Nama</th><th>Alasan</th></tr></thead><tbody>${r.gagal.map(g => `<tr><td>${g[0]}</td><td>${esc(g[1])}</td><td>${esc(g[2])}</td></tr>`).join('')}</tbody></table></div><div class="actions"><button class="btn-primary" data-close>Tutup</button></div>`);
+    else toast(r.masuk + ' target berhasil diimpor.'); }); };
   $('#tSave').onclick = () => run($('#tSave'), async () => {
     await q(sb.from('dlv_target_default').upsert([...$('#sOut').querySelectorAll('[data-def]')].map(i => ({ kontrak: i.dataset.def, target: Math.max(0, Number(i.value) || 0) }))));
     const ins = [], del = [];
@@ -1085,7 +1207,7 @@ async function setSync() {
 }
 
 /* ---------- Router ---------- */
-const PAGES = { dashboard: pageDashboard, performa: pagePerforma, penilaian: pagePenilaian, laporan: pageLaporan, absensi: pageAbsensi, reimburse: pageReimburse, akun: pageAkun, pengaturan: pagePengaturan };
+const PAGES = { tanya: pageTanya, dashboard: pageDashboard, performa: pagePerforma, penilaian: pagePenilaian, laporan: pageLaporan, absensi: pageAbsensi, reimburse: pageReimburse, akun: pageAkun, pengaturan: pagePengaturan };
 function render() {
   stopCam(); clearInterval(absenSaya.t); clearInterval(setSync.t);
   const allowed = NAV.filter(n => n.id && n.ok());
