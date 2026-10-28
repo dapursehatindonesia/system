@@ -346,64 +346,62 @@ async function pageDashboard(v) {
   <div class="card"><h2>Dashboard performa</h2><p class="sub" style="margin:0">Box, keterlambatan, complaint, dan cost per kurir dan area. <a href="#performa">Buka dashboard performa →</a></p></div>`;
 }
 
-/* ---------- Dashboard performa (data sync spreadsheet) ---------- */
-const DSH = { bulan: [monthKey(TODAY)], batch: [], tanggal: [], branch: [], area: [], kurir: [] };
-const DCACHE = { key: '', sla: [], comp: [], cost: [], target: [] };
+/* ---------- Dashboard performa — sumber: sheet Cost (mingguan) + raw complaint (detail) ---------- */
+const DSH = { bulan: [monthKey(TODAY)], batch: [], branch: [], area: [], jabatan: [], nama: [] };
+const DCACHE = { key: '', cost: [], comp: [], target: [] };
 const uniq = a => [...new Set(a)];
 const num = n => Math.round(n || 0).toLocaleString('id-ID');
 const fmtPct = (v, d = 1) => v == null ? '—' : v.toLocaleString('id-ID', { minimumFractionDigits: d, maximumFractionDigits: d }) + '%';
-const rupiahShort = n => n >= 1e9 ? 'Rp ' + (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' M' : n >= 1e6 ? 'Rp ' + (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt' : rupiah(n);
-const isPayroll = c => /payroll/i.test(c.batch || '');
-/** Ambil semua baris (Supabase membatasi 1000 baris per permintaan). */
+const rupiahShort = n => Math.abs(n) >= 1e9 ? 'Rp ' + (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' M' : Math.abs(n) >= 1e6 ? 'Rp ' + (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt' : rupiah(n);
+const nb = s => /^\d+$/.test(String(s || '')) ? String(s).padStart(2, '0') : String(s || '');          // batch "4" = "04"
+const kunci = (nama, br) => normName(nama) + '|' + normName(br);
+const toSec = t => { if (!t) return null; const [h, m, s] = String(t).split(':').map(Number); return h * 3600 + m * 60 + (s || 0); };
+const fromSec = s => s == null ? '—' : pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60));
 async function fetchAll(make) {
   let out = [], from = 0;
   for (;;) { const { data, error } = await make().range(from, from + 999); if (error) throw new Error(error.message); out = out.concat(data); if (data.length < 1000 || from > 300000) break; from += 1000; }
   return out;
 }
-function enrich(r, nama) {
-  const pid = r.profile_id, a = pid ? area(areaOf(pid)) : {}, b = a.id ? branch(a.branch_id) : {};
-  const nm = (pid && person(pid).nama) || nama || '';
-  return { ...r, kKey: pid || (nm ? 'n:' + normName(nm) : 'n:-'), kNama: nm || 'Tanpa kurir', terdaftar: !!pid,
-    areaNama: a.nama ? (D.areas.filter(x => normName(x.nama) === normName(a.nama)).length > 1 ? a.nama + ' · ' + (b.nama || '') : a.nama) : (r.area || (nm ? 'Tidak terdaftar' : 'Tanpa kurir')), branchNama: b.nama || r.branch_cost || 'Tidak terdaftar' };
-}
+/** Kunci nama|branch yang punya akun (branch dari area penugasan saat ini). */
+function kunciAkun() { const m = new Map(); D.people.forEach(p => { const a = area(areaOf(p.id)); if (a.id) m.set(kunci(p.nama, branch(a.branch_id).nama), p.id); }); return m; }
 async function loadDash() {
-  const months = [...DSH.bulan].sort(); const key = months.join(',');
+  const months = [...DSH.bulan].sort(), key = months.join(',');
   if (DCACHE.key === key) return;
-  const ranges = months.map(m => [m + '-01', monthKey(addDays(m + '-01', 32)) + '-01']);
-  const per = await Promise.all(ranges.map(([s, e]) => Promise.all([
-    fetchAll(() => sb.from('dlv_sla').select('id,batch,tanggal,sesi,mode,nama_kurir,profile_id,max_time,qty_box,box_terlambat').gte('tanggal', s).lt('tanggal', e).order('id')),
-    fetchAll(() => sb.from('dlv_complaints').select('id,batch,tanggal,sesi,branch,nama_customer,tipe,keterangan,nama_kurir,kode_warna,profile_id').gte('tanggal', s).lt('tanggal', e).order('id')),
-    fetchAll(() => sb.from('dlv_costs').select('*').eq('bulan', s).order('id'))
-  ])));
-  DCACHE.sla = per.flatMap(p => p[0]).map(r => enrich(r, r.nama_kurir));
-  DCACHE.comp = per.flatMap(p => p[1]).map(r => enrich(r, r.nama_kurir));
-  DCACHE.cost = per.flatMap(p => p[2]).map(r => enrich({ ...r, branch_cost: r.branch }, r.nama));
-  const tm = months[months.length - 1] + '-01';
-  DCACHE.target = await q(sb.from('dlv_target_box').select('*').eq('bulan', tm));
-  DCACHE.key = key;
+  const per = await Promise.all(months.map(m => { const s = m + '-01', e = monthKey(addDays(s, 32)) + '-01'; return Promise.all([
+    fetchAll(() => sb.from('dlv_costs').select('*').eq('bulan', s).order('id')),
+    fetchAll(() => sb.from('dlv_complaints').select('id,batch,tanggal,sesi,branch,nama_customer,tipe,keterangan,nama_kurir,kode_warna,area_nama,branch_nama').gte('tanggal', s).lt('tanggal', e).order('id'))]); }));
+  const akun = kunciAkun();
+  const cost = per.flatMap(p => p[0]).map(r => ({ ...r, batch: nb(r.batch), kKey: kunci(r.nama, r.branch), kNama: r.nama, branchNama: (r.branch || '').trim() || 'Tanpa branch', areaRaw: (r.area || '').trim(), jab: (r.jabatan || '').trim() || '—', pid: akun.get(kunci(r.nama, r.branch)) || null }));
+  const jabOf = {}; cost.forEach(c => jabOf[c.kKey] = c.jab);
+  const comp = per.flatMap(p => p[1]).map(r => ({ ...r, batch: nb(r.batch), kKey: r.nama_kurir ? kunci(r.nama_kurir, r.branch_nama) : 'n:-', kNama: r.nama_kurir || 'Tanpa kurir', branchNama: (r.branch_nama || '').trim() || 'Tanpa branch', areaRaw: (r.area_nama || '').trim(), jab: jabOf[r.nama_kurir ? kunci(r.nama_kurir, r.branch_nama) : ''] || '—' }));
+  const all = [...cost, ...comp], cab = {};
+  all.forEach(r => { if (r.areaRaw) (cab[normName(r.areaRaw)] = cab[normName(r.areaRaw)] || new Set()).add(r.branchNama); });
+  all.forEach(r => r.areaNama = r.areaRaw ? (cab[normName(r.areaRaw)].size > 1 ? r.areaRaw + ' · ' + r.branchNama : r.areaRaw) : (r.kNama === 'Tanpa kurir' ? 'Tanpa kurir' : 'Tanpa area'));
+  const dupNama = {}; cost.forEach(c => (dupNama[normName(c.kNama)] = dupNama[normName(c.kNama)] || new Set()).add(c.branchNama));
+  all.forEach(r => r.label = r.kNama + (dupNama[normName(r.kNama)] && dupNama[normName(r.kNama)].size > 1 ? ' · ' + r.branchNama : ''));
+  Object.assign(DCACHE, { cost, comp, key, target: await q(sb.from('dlv_target_box').select('*').eq('bulan', months[months.length - 1] + '-01')) });
 }
-const allRows = () => [...DCACHE.sla, ...DCACHE.comp, ...DCACHE.cost];
+const matchOrg = r => (!DSH.branch.length || DSH.branch.includes(r.branchNama)) && (!DSH.area.length || DSH.area.includes(r.areaNama)) && (!DSH.jabatan.length || DSH.jabatan.includes(r.jab)) && (!DSH.nama.length || DSH.nama.includes(r.kKey));
+const matchBatch = r => !DSH.batch.length || DSH.batch.includes(r.batch);
+const fCost = () => DCACHE.cost.filter(r => matchOrg(r) && matchBatch(r));
+const fComp = () => DCACHE.comp.filter(r => matchOrg(r) && matchBatch(r));
 function dashOptions(k) {
-  const inB = r => !DSH.batch.length || DSH.batch.includes(String(r.batch ?? ''));
-  if (k === 'bulan') { const t = new Date(), out = []; for (let i = 0; i < 12; i++) { const d = new Date(t.getFullYear(), t.getMonth() - i, 1); out.push(iso(d).slice(0, 7)); } return out.map(m => [m, monthLabel(m)]); }
-  if (k === 'batch') return uniq(allRows().map(r => String(r.batch ?? '')).filter(Boolean)).sort((a, b) => a.localeCompare(b, 'id', { numeric: true })).map(b => [b, /^\d+$/.test(b) ? 'Batch ' + b : b]);
-  if (k === 'tanggal') return uniq([...DCACHE.sla, ...DCACHE.comp].filter(inB).map(r => r.tanggal)).sort().reverse().map(d => [d, HARI[parse(d).getDay()] + ', ' + fmtDate(d)]);
-  if (k === 'branch') return uniq(allRows().map(r => r.branchNama)).sort().map(b => [b, b]);
-  if (k === 'area') return uniq(allRows().filter(r => !DSH.branch.length || DSH.branch.includes(r.branchNama)).map(r => r.areaNama)).sort().map(a => [a, a]);
-  if (k === 'kurir') { const m = new Map(); allRows().filter(r => (!DSH.branch.length || DSH.branch.includes(r.branchNama)) && (!DSH.area.length || DSH.area.includes(r.areaNama))).forEach(r => m.set(r.kKey, r.kNama + (r.terdaftar ? '' : ' (tidak terdaftar)'))); return [...m].sort((a, b) => a[1].localeCompare(b[1])); }
+  const rows = [...DCACHE.cost, ...DCACHE.comp];
+  if (k === 'bulan') { const t = new Date(), out = []; for (let i = 0; i < 12; i++) out.push(iso(new Date(t.getFullYear(), t.getMonth() - i, 1)).slice(0, 7)); return out.map(m => [m, monthLabel(m)]); }
+  if (k === 'batch') return uniq(rows.map(r => r.batch).filter(Boolean)).sort((a, b) => a.localeCompare(b, 'id', { numeric: true })).map(b => [b, /^\d+$/.test(b) ? 'Batch ' + b : b]);
+  if (k === 'branch') return uniq(rows.map(r => r.branchNama)).sort().map(b => [b, b]);
+  if (k === 'area') return uniq(rows.filter(r => !DSH.branch.length || DSH.branch.includes(r.branchNama)).map(r => r.areaNama)).sort().map(a => [a, a]);
+  if (k === 'jabatan') return uniq(DCACHE.cost.map(r => r.jab)).sort().map(j => [j, j]);
+  if (k === 'nama') { const m = new Map(); DCACHE.cost.filter(r => (!DSH.branch.length || DSH.branch.includes(r.branchNama)) && (!DSH.area.length || DSH.area.includes(r.areaNama)) && (!DSH.jabatan.length || DSH.jabatan.includes(r.jab))).forEach(r => m.set(r.kKey, r.label)); return [...m].sort((a, b) => a[1].localeCompare(b[1])); }
   return [];
 }
-const matchOrg = r => (!DSH.branch.length || DSH.branch.includes(r.branchNama)) && (!DSH.area.length || DSH.area.includes(r.areaNama)) && (!DSH.kurir.length || DSH.kurir.includes(r.kKey));
-const matchBatch = r => !DSH.batch.length || DSH.batch.includes(String(r.batch ?? ''));
-const fSla = () => DCACHE.sla.filter(r => matchOrg(r) && matchBatch(r) && (!DSH.tanggal.length || DSH.tanggal.includes(r.tanggal)));
-const fComp = () => DCACHE.comp.filter(r => matchOrg(r) && matchBatch(r) && (!DSH.tanggal.length || DSH.tanggal.includes(r.tanggal)));
-const fCost = () => DCACHE.cost.filter(r => matchOrg(r) && matchBatch(r));   // cost mingguan tidak punya tanggal
-function ringkas(sla, comp, cost) {
-  const box = sla.reduce((a, x) => a + (x.qty_box || 0), 0), late = sla.reduce((a, x) => a + (x.box_terlambat || 0), 0);
-  const mode = {}; sla.forEach(x => mode[x.mode] = (mode[x.mode] || 0) + (x.qty_box || 0));
-  const c = cost.filter(x => !isPayroll(x)).reduce((a, x) => a + Number(x.total_cost || 0), 0);
-  const pay = cost.filter(isPayroll).reduce((a, x) => a + Number(x.total_weekly || 0), 0);
-  return { box, late, mode, comp: comp.length, cost: c, payroll: pay, pLate: box ? late / box * 100 : null, pComp: box ? comp.length / box * 100 : null, cpb: box ? c / box : null };
+/** Rekap dari baris Cost: semua kolom di-SUM, Max Time dirata-rata. */
+function ringkas(cost) {
+  const S = k => cost.reduce((a, x) => a + Number(x[k] || 0), 0);
+  const box = S('total_box'), hg = S('box_hg'), bk = S('box_bk'), gt = S('box_gt'), late = S('late_delivery'), comp = S('complaint'), tc = S('total_cost');
+  const mt = cost.map(x => toSec(x.max_time)).filter(x => x != null);
+  return { box, hg, bk, gt, lain: Math.max(0, box - hg - bk - gt), b2b: S('box_b2b'), b2c: S('box_b2c'), late, comp, weekly: S('total_weekly'), tcost: tc, maxAvg: mt.length ? mt.reduce((a, x) => a + x, 0) / mt.length : null,
+    pLate: box ? late / box * 100 : null, pComp: box ? comp / box * 100 : null, cpb: box ? tc / box : null };
 }
 const PIE = ['#1d8a5b', '#e0b400', '#2b6fb6', '#c64039', '#7c4dcc', '#e07b2c', '#6b7f74'];
 function pieChart(items, label) {
@@ -437,105 +435,110 @@ function bindMs(root, onChange) {
   });
 }
 async function pagePerforma(v) {
-  v.innerHTML = `<div class="card"><div class="filters">${[['bulan', 'Bulan'], ['batch', 'Batch'], ['tanggal', 'Tanggal'], ['branch', 'Branch'], ['area', 'Area'], ['kurir', 'Nama kurir']].map(([k, l]) => `<div class="ms" data-ms="${k}"><button type="button" class="ms-btn" aria-haspopup="true" aria-expanded="false"><span class="ms-lbl">${l}</span><span class="ms-val">${esc(msSummary(k))}</span></button><div class="ms-pop" hidden></div></div>`).join('')}</div>
-    <div class="row" style="justify-content:space-between;margin-top:10px"><p class="small muted" style="margin:0">Bisa pilih lebih dari satu. Data dari spreadsheet, diperbarui setiap hari pukul 01.00. Area mengikuti penugasan kurir saat ini; nama yang belum punya akun tampil sebagai "Tidak terdaftar".</p><button class="btn-sm" id="dReset">Reset filter</button></div></div>
+  v.innerHTML = `<div class="card"><div class="filters">${[['bulan', 'Bulan'], ['batch', 'Batch'], ['branch', 'Branch'], ['area', 'Area'], ['jabatan', 'Jabatan'], ['nama', 'Nama']].map(([k, l]) => `<div class="ms" data-ms="${k}"><button type="button" class="ms-btn" aria-haspopup="true" aria-expanded="false"><span class="ms-lbl">${l}</span><span class="ms-val">${esc(msSummary(k))}</span></button><div class="ms-pop" hidden></div></div>`).join('')}</div>
+    <div class="row" style="justify-content:space-between;margin-top:10px"><p class="small muted" style="margin:0">Semua angka dari sheet Cost (per batch). Detail &amp; kategori complaint dari raw complaint. Diperbarui setiap hari pukul 01.00.</p><button class="btn-sm" id="dReset">Reset filter</button></div></div>
   <div id="dOut"><div class="card empty">Memuat data…</div></div>`;
   const redraw = async k => {
-    if (k === 'bulan') { if (!DSH.bulan.length) DSH.bulan = [monthKey(TODAY)]; DSH.batch = []; DSH.tanggal = []; $('#dOut').innerHTML = '<div class="card empty">Memuat data…</div>'; try { await loadDash(); } catch (e) { $('#dOut').innerHTML = `<div class="card empty">${esc(e.message)}</div>`; return; } }
-    const deps = { batch: ['tanggal'], branch: ['area', 'kurir'], area: ['kurir'] };
+    if (k === 'bulan') { if (!DSH.bulan.length) DSH.bulan = [monthKey(TODAY)]; DSH.batch = []; $('#dOut').innerHTML = '<div class="card empty">Memuat data…</div>'; try { await loadDash(); } catch (e) { $('#dOut').innerHTML = `<div class="card empty">${esc(e.message)}</div>`; return; } }
+    const deps = { branch: ['area', 'nama'], area: ['nama'], jabatan: ['nama'] };
     (deps[k] || []).forEach(d => { const ok = new Set(dashOptions(d).map(o => o[0])); DSH[d] = DSH[d].filter(x => ok.has(x)); });
     document.querySelectorAll('.ms').forEach(ms => ms.querySelector('.ms-val').textContent = msSummary(ms.dataset.ms));
     drawPerforma();
   };
   bindMs(v, redraw);
-  $('#dReset').onclick = () => { Object.assign(DSH, { bulan: [monthKey(TODAY)], batch: [], tanggal: [], branch: [], area: [], kurir: [] }); pagePerforma(v); };
+  $('#dReset').onclick = () => { Object.assign(DSH, { bulan: [monthKey(TODAY)], batch: [], branch: [], area: [], jabatan: [], nama: [] }); pagePerforma(v); };
   await loadDash(); drawPerforma();
 }
 function drawPerforma() {
   const out = $('#dOut'); if (!out) return;
-  const sla = fSla(), comp = fComp(), cost = fCost(), T = ringkas(sla, comp, cost);
-  if (!DCACHE.sla.length && !DCACHE.comp.length && !DCACHE.cost.length) { out.innerHTML = '<div class="card empty">Belum ada data untuk bulan ini. Pastikan sinkronisasi spreadsheet sudah berjalan (Pengaturan → Sinkronisasi data), atau pilih bulan lain.</div>'; return; }
+  if (!DCACHE.cost.length && !DCACHE.comp.length) { out.innerHTML = '<div class="card empty">Belum ada data untuk bulan ini. Pastikan sinkronisasi sudah berjalan (Pengaturan → Sinkronisasi data), atau pilih bulan lain.</div>'; return; }
+  const cost = fCost(), comp = fComp(), T = ringkas(cost);
   const grp = (rows, key) => { const m = {}; rows.forEach(r => (m[r[key]] = m[r[key]] || []).push(r)); return m; };
-  const areas = uniq([...sla, ...comp, ...cost].map(r => r.areaNama)), gs = grp(sla, 'areaNama'), gc = grp(comp, 'areaNama'), gk = grp(cost, 'areaNama');
-  const per = areas.map(a => ({ a, ...ringkas(gs[a] || [], gc[a] || [], gk[a] || []) }));
-  const bs = grp(sla, 'branchNama'), perBr = Object.keys(bs).map(b => ({ l: b, v: bs[b].reduce((s, x) => s + (x.qty_box || 0), 0) }));
-  const A = (f, keep) => per.filter(x => keep || f(x) != null).map(x => ({ l: x.a, v: f(x) || 0 }));
+  const gA = grp(cost, 'areaNama'), gB = grp(cost, 'branchNama');
+  const perA = Object.keys(gA).map(a => ({ a, ...ringkas(gA[a]) })), perB = Object.keys(gB).map(b => ({ l: b, v: ringkas(gB[b]).box }));
+  const A = f => perA.map(x => ({ l: x.a, v: f(x) })).filter(x => x.v != null);
   const desc = (a, b) => b.v - a.v, asc = (a, b) => a.v - b.v;
-  const modes = Object.entries(T.mode).sort((a, b) => b[1] - a[1]);
   const byCat = Object.entries(comp.reduce((o, c) => (o[c.tipe || 'Lainnya'] = (o[c.tipe || 'Lainnya'] || 0) + 1, o), {})).map(([l, v]) => ({ l, v })).sort(desc);
+  const orang = uniq(cost.filter(c => !/payroll/i.test(c.batch)).map(c => c.kKey)).length;
   out.innerHTML = `<div class="kpis">
-    <div class="kpi lead"><span>Total box</span><b>${num(T.box)}</b><small>${uniq(sla.map(r => r.kKey)).length} kurir</small></div>
-    <div class="kpi"><span>Cost</span><b title="${rupiah(T.cost)}">${rupiahShort(T.cost)}</b><small>${T.cpb == null ? '—' : rupiah(T.cpb) + ' per box'}</small></div>
-    ${T.payroll ? `<div class="kpi"><span>Payroll</span><b title="${rupiah(T.payroll)}">${rupiahShort(T.payroll)}</b><small>bulanan, terpisah dari cost mingguan</small></div>` : ''}
-    <div class="kpi"><span>Complaint</span><b>${num(T.comp)}</b><small>${comp.filter(c => !c.nama_kurir).length ? comp.filter(c => !c.nama_kurir).length + ' tanpa kurir' : 'kasus'}</small></div>
-    <div class="kpi"><span>% complaint</span><b>${fmtPct(T.pComp, 2)}</b><small>dari total box</small></div>
-    <div class="kpi"><span>% terlambat</span><b>${fmtPct(T.pLate)}</b><small>${num(T.late)} box terlambat</small></div>
-    ${modes.map(([m, n]) => `<div class="kpi"><span>Box ${esc(m)}</span><b>${num(n)}</b><small>${fmtPct(T.box ? n / T.box * 100 : null)} dari total</small></div>`).join('')}</div>
-  ${DSH.tanggal.length && cost.length ? '<div class="note">Filter tanggal tidak berlaku untuk cost, karena cost direkap per batch (mingguan/bulanan). Gunakan filter Batch untuk cost.</div>' : ''}
+    <div class="kpi lead"><span>Total box</span><b>${num(T.box)}</b><small>${num(orang)} orang</small></div>
+    <div class="kpi"><span>Total Weekly</span><b title="${rupiah(T.weekly)}">${rupiahShort(T.weekly)}</b><small>yang dibayarkan</small></div>
+    <div class="kpi"><span>Total Cost</span><b title="${rupiah(T.tcost)}">${rupiahShort(T.tcost)}</b><small>estimasi · ${T.cpb == null ? '—' : rupiah(T.cpb) + ' per box'}</small></div>
+    <div class="kpi"><span>Complaint</span><b>${num(T.comp)}</b><small>${fmtPct(T.pComp, 2)} dari total box</small></div>
+    <div class="kpi"><span>Late delivery</span><b>${num(T.late)}</b><small>${fmtPct(T.pLate)} dari total box</small></div>
+    <div class="kpi"><span>Rata-rata max time</span><b>${fromSec(T.maxAvg)}</b><small>rata-rata per batch</small></div>
+    ${[['HG', T.hg], ['BK', T.bk], ['GT', T.gt], ['B2B', T.b2b], ['B2C', T.b2c]].concat(T.lain ? [['Lainnya', T.lain]] : []).map(([l, n]) => `<div class="kpi"><span>Box ${l}</span><b>${num(n)}</b><small>${fmtPct(T.box ? n / T.box * 100 : null)} dari total</small></div>`).join('')}</div>
   <div class="charts">
-    ${chartCard('Box per bisnis', 'Dari kolom Mode di SLA.', pieChart(modes.map(([l, v]) => ({ l, v })), 'Box per bisnis'))}
-    ${chartCard('Box per branch', 'Diurutkan dari yang terbanyak.', barChart(perBr.sort(desc), num))}
-    ${chartCard('Box per area', 'Diurutkan dari yang terbanyak.', barChart(A(x => x.box, true).filter(x => x.v).sort(desc), num))}
-    ${chartCard('Cost per box per area', 'Diurutkan dari yang termurah.', barChart(A(x => x.cost ? x.cpb : null).sort(asc), rupiah, 'i'))}
-    ${chartCard('Complaint per area', 'Diurutkan dari yang terbanyak.', barChart(A(x => x.comp, true).filter(x => x.v).sort(desc), num, 'b'))}
-    ${chartCard('% complaint per area', 'Complaint dibagi total box.', barChart(A(x => x.pComp).sort(desc), x => fmtPct(x, 2), 'b'))}
-    ${chartCard('% terlambat per area', 'Box terlambat dibagi total box.', barChart(A(x => x.pLate).sort(desc), x => fmtPct(x), 'w'))}
-    ${chartCard('Complaint per kategori', 'Berdasarkan tipe complaint.', pieChart(byCat, 'Complaint per kategori'))}
+    ${chartCard('Box per bisnis', 'Box HG, BK, GT dari sheet Cost.', pieChart([{ l: 'HG', v: T.hg }, { l: 'BK', v: T.bk }, { l: 'GT', v: T.gt }, { l: 'Lainnya', v: T.lain }], 'Box per bisnis'))}
+    ${chartCard('Box per branch', 'Diurutkan dari yang terbanyak.', barChart(perB.filter(x => x.v).sort(desc), num))}
+    ${chartCard('Box per area', 'Diurutkan dari yang terbanyak.', barChart(A(x => x.box).filter(x => x.v).sort(desc), num))}
+    ${chartCard('Cost per box per area', 'Total Cost ÷ Total Box. Termurah di atas.', barChart(A(x => x.box && x.tcost ? x.cpb : null).sort(asc), rupiah, 'i'))}
+    ${chartCard('Complaint per area', 'Kolom Complaint di sheet Cost.', barChart(A(x => x.comp).filter(x => x.v).sort(desc), num, 'b'))}
+    ${chartCard('% complaint per area', 'Complaint ÷ Total Box.', barChart(A(x => x.pComp).sort(desc), x => fmtPct(x, 2), 'b'))}
+    ${chartCard('% late delivery per area', 'Late delivery ÷ Total Box.', barChart(A(x => x.pLate).sort(desc), x => fmtPct(x), 'w'))}
+    ${chartCard('Rata-rata max time per area', 'Paling larut di atas.', barChart(A(x => x.maxAvg).sort(desc), fromSec, 'i'))}
+    ${chartCard('Complaint per kategori', 'Dari raw complaint (detail).', pieChart(byCat, 'Complaint per kategori'))}
   </div>
   <div class="card" style="margin-top:16px" id="dKurir"></div><div class="card" style="margin-top:16px" id="dComp"></div>`;
-  drawKurirTbl(sla, comp, cost); drawCompTbl(comp);
+  drawKurirTbl(cost); drawCompTbl(comp);
 }
-function drawKurirTbl(sla, comp, cost) {
+function drawKurirTbl(cost) {
   const tm = [...DSH.bulan].sort().slice(-1)[0], def = k => (D.targetDefault.find(x => x.kontrak === k) || {}).target || 0;
-  const monthBox = {}; DCACHE.sla.filter(r => monthKey(r.tanggal) === tm).forEach(r => monthBox[r.kKey] = (monthBox[r.kKey] || 0) + (r.qty_box || 0));
-  const keys = uniq([...sla, ...comp, ...cost].map(r => r.kKey));
-  const rows = keys.map(k => {
-    const s = sla.filter(r => r.kKey === k), c = comp.filter(r => r.kKey === k), co = cost.filter(r => r.kKey === k), any = s[0] || c[0] || co[0];
-    const S = ringkas(s, c, co), pid = any.profile_id, tg = pid ? ((DCACHE.target.find(t => t.profile_id === pid) || {}).target ?? def(person(pid).kontrak)) : null;
-    return { k, nama: any.kNama, terdaftar: any.terdaftar, area: any.areaNama, ...S, hg: S.mode.HG || 0, bk: S.mode.BK || 0, lain: S.box - (S.mode.HG || 0) - (S.mode.BK || 0), mb: monthBox[k] || 0, tg, capai: tg ? (monthBox[k] || 0) / tg * 100 : null };
+  const g = {}; cost.forEach(r => (g[r.kKey] = g[r.kKey] || []).push(r));
+  const mBox = {}; DCACHE.cost.filter(r => monthKey(r.bulan) === tm).forEach(r => mBox[r.kKey] = (mBox[r.kKey] || 0) + Number(r.total_box || 0));
+  const rows = Object.entries(g).map(([k, rs]) => {
+    const last = rs.slice().sort((a, b) => (b.bulan + b.batch).localeCompare(a.bulan + a.batch, 'id', { numeric: true }))[0], S = ringkas(rs), pid = last.pid;
+    const tg = pid ? ((DCACHE.target.find(t => t.profile_id === pid) || {}).target ?? def(last.kontrak)) : null;
+    return { k, nama: last.label, akun: !!pid, jab: last.jab, branch: last.branchNama, area: last.areaNama, ...S, mb: mBox[k] || 0, tg, capai: tg ? (mBox[k] || 0) / tg * 100 : null };
   });
   const cols = [
-    { key: 'nama', label: 'Kurir', render: r => `<b>${esc(r.nama)}</b>${r.terdaftar ? '' : '<br><span class="chip c-warn">Tidak terdaftar</span>'}` },
-    { key: 'area', label: 'Area' },
-    { key: 'box', label: 'Box', num: true, render: r => num(r.box) }, { key: 'hg', label: 'HG', num: true, render: r => num(r.hg) }, { key: 'bk', label: 'BK', num: true, render: r => num(r.bk) },
-    { key: 'lain', label: 'Lainnya', num: true, render: r => num(r.lain) },
-    { key: 'pLate', label: '% terlambat', num: true, render: r => r.pLate == null ? '—' : `<span class="chip ${r.pLate <= 5 ? 'c-ok' : r.pLate <= 15 ? 'c-warn' : 'c-bad'}">${fmtPct(r.pLate)}</span>` },
-    { key: 'comp', label: 'Complaint', num: true, render: r => r.comp ? `<span class="chip c-bad">${r.comp}</span>` : '0' },
+    { key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama)}</b>${r.akun ? '' : '<br><span class="small muted">belum punya akun</span>'}` },
+    { key: 'jab', label: 'Jabatan' }, { key: 'branch', label: 'Branch' }, { key: 'area', label: 'Area' },
+    { key: 'box', label: 'Box', num: true, render: r => num(r.box) }, { key: 'hg', label: 'HG', num: true, render: r => num(r.hg) }, { key: 'bk', label: 'BK', num: true, render: r => num(r.bk) }, { key: 'gt', label: 'GT', num: true, render: r => num(r.gt) },
+    { key: 'late', label: 'Late', num: true, render: r => num(r.late) },
+    { key: 'pLate', label: '% late', num: true, render: r => r.pLate == null ? '—' : `<span class="chip ${r.pLate <= 5 ? 'c-ok' : r.pLate <= 15 ? 'c-warn' : 'c-bad'}">${fmtPct(r.pLate)}</span>` },
+    { key: 'maxAvg', label: 'Rata2 max time', num: true, render: r => fromSec(r.maxAvg) },
+    { key: 'comp', label: 'Complaint', num: true, render: r => r.comp ? `<span class="chip c-bad">${num(r.comp)}</span>` : '0' },
     { key: 'pComp', label: '% complaint', num: true, render: r => fmtPct(r.pComp, 2) },
-    { key: 'cost', label: 'Cost', num: true, render: r => r.cost ? rupiah(r.cost) : '—', sort: r => r.cost || null },
-    { key: 'payroll', label: 'Payroll', num: true, render: r => r.payroll ? rupiah(r.payroll) : '—', sort: r => r.payroll || null },
+    { key: 'weekly', label: 'Total Weekly', num: true, render: r => rupiah(r.weekly) },
+    { key: 'tcost', label: 'Total Cost', num: true, render: r => rupiah(r.tcost) },
     { key: 'cpb', label: 'Cost/box', num: true, render: r => r.cpb == null ? '—' : rupiah(r.cpb) },
     { key: 'capai', label: 'Target ' + monthLabel(tm), num: true, render: r => r.capai == null ? '—' : `${num(r.mb)}/${num(r.tg)} <span class="chip ${r.capai >= 100 ? 'c-ok' : r.capai >= 70 ? 'c-warn' : 'c-mute'}">${r.capai.toFixed(0)}%</span>` }
   ];
   const el = $('#dKurir');
-  el.innerHTML = `<h2>Detail per kurir</h2><p class="sub">${rows.length} nama. Klik panah di judul kolom untuk mengurutkan, klik baris untuk detail.</p>` + dataTable('dk', cols, rows, { sortKey: 'box', sortDir: 'desc', freezeFirst: true, rowAttr: r => `class="click" data-k="${esc(r.k)}" tabindex="0"`, empty: 'Tidak ada data.' });
-  bindDataTable(el, 'dk', () => drawKurirTbl(sla, comp, cost));
+  el.innerHTML = `<h2>Detail per orang</h2><p class="sub">${rows.length} orang (Nama + Branch). Klik panah di judul kolom untuk mengurutkan, klik baris untuk detail per batch.</p>` + dataTable('dk', cols, rows, { sortKey: 'box', sortDir: 'desc', freezeFirst: true, rowAttr: r => `class="click" data-k="${esc(r.k)}" tabindex="0"`, empty: 'Tidak ada data.' });
+  bindDataTable(el, 'dk', () => drawKurirTbl(cost));
   el.querySelectorAll('tr[data-k]').forEach(tr => { const go = () => detailKurir(tr.dataset.k); tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
 }
-let DCAT = '';
+const DC = { dari: '', sampai: '', kat: '' };
 function drawCompTbl(comp) {
-  const cats = uniq(comp.map(c => c.tipe || 'Lainnya')).sort(); if (DCAT && !cats.includes(DCAT)) DCAT = '';
-  const rows = comp.filter(c => !DCAT || (c.tipe || 'Lainnya') === DCAT);
+  const cats = uniq(comp.map(c => c.tipe || 'Lainnya')).sort(); if (DC.kat && !cats.includes(DC.kat)) DC.kat = '';
+  const rows = comp.filter(c => (!DC.kat || (c.tipe || 'Lainnya') === DC.kat) && (!DC.dari || c.tanggal >= DC.dari) && (!DC.sampai || c.tanggal <= DC.sampai));
   const cols = [
-    { key: 'tanggal', label: 'Tanggal', render: r => fmtDate(r.tanggal) }, { key: 'batch', label: 'Batch', sort: r => r.batch || '' },
-    { key: 'kNama', label: 'Kurir', render: r => r.nama_kurir ? `<b>${esc(r.kNama)}</b>` : '<span class="chip c-mute">Tanpa kurir</span>' },
-    { key: 'areaNama', label: 'Area' }, { key: 'branch', label: 'Bisnis/branch' }, { key: 'tipe', label: 'Kategori', render: r => `<span class="chip c-bad">${esc(r.tipe || 'Lainnya')}</span>` },
+    { key: 'tanggal', label: 'Tanggal', render: r => fmtDate(r.tanggal) }, { key: 'batch', label: 'Batch' },
+    { key: 'kNama', label: 'Kurir', render: r => r.nama_kurir ? `<b>${esc(r.label)}</b>` : '<span class="chip c-mute">Tanpa kurir</span>' },
+    { key: 'branchNama', label: 'Branch' }, { key: 'areaNama', label: 'Area' }, { key: 'branch', label: 'Bisnis' },
+    { key: 'tipe', label: 'Kategori', render: r => `<span class="chip c-bad">${esc(r.tipe || 'Lainnya')}</span>` },
     { key: 'sesi', label: 'Sesi' }, { key: 'nama_customer', label: 'Customer' }, { key: 'kode_warna', label: 'Kode warna' }, { key: 'keterangan', label: 'Keterangan', wrap: true }
   ];
   const el = $('#dComp');
-  el.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Detail complaint</h2><p class="sub" style="margin:0">${rows.length} complaint sesuai filter.</p></div><label class="f"><span>Kategori</span><select id="dCat"><option value="">Semua kategori</option>${cats.map(c => opt(c, c, DCAT)).join('')}</select></label></div>` +
+  el.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><div><h2>Detail complaint</h2><p class="sub" style="margin:0">${rows.length} complaint dari raw complaint (bisa berbeda dengan total di sheet Cost).</p></div>
+    <div class="row"><label class="f"><span>Dari tanggal</span><input type="date" id="dcDari" value="${DC.dari}"></label><label class="f"><span>Sampai</span><input type="date" id="dcSampai" value="${DC.sampai}"></label>
+    <label class="f"><span>Kategori</span><select id="dCat"><option value="">Semua kategori</option>${cats.map(c => opt(c, c, DC.kat)).join('')}</select></label></div></div>` +
     dataTable('dc', cols, rows, { sortKey: 'tanggal', sortDir: 'desc', maxHeight: 460, empty: 'Tidak ada complaint.' });
   bindDataTable(el, 'dc', () => drawCompTbl(comp));
-  $('#dCat').onchange = e => { DCAT = e.target.value; drawCompTbl(comp); };
+  $('#dCat').onchange = e => { DC.kat = e.target.value; drawCompTbl(comp); };
+  $('#dcDari').onchange = e => { DC.dari = e.target.value; drawCompTbl(comp); };
+  $('#dcSampai').onchange = e => { DC.sampai = e.target.value; drawCompTbl(comp); };
 }
 function detailKurir(k) {
-  const sla = fSla().filter(r => r.kKey === k).sort((a, b) => (b.tanggal + b.sesi).localeCompare(a.tanggal + a.sesi)), comp = fComp().filter(r => r.kKey === k), cost = fCost().filter(r => r.kKey === k);
-  const any = sla[0] || comp[0] || cost[0]; if (!any) return; const S = ringkas(sla, comp, cost);
-  openModal(`${modalHead(any.kNama, esc(any.areaNama) + ' · ' + esc(any.branchNama) + (any.terdaftar ? '' : ' · belum punya akun'))}
-  <div class="kpis" style="margin-top:0"><div class="kpi"><span>Box</span><b>${num(S.box)}</b><small>${Object.entries(S.mode).map(([m, n]) => m + ' ' + num(n)).join(' · ')}</small></div><div class="kpi"><span>% terlambat</span><b>${fmtPct(S.pLate)}</b></div><div class="kpi"><span>Complaint</span><b>${S.comp}</b></div><div class="kpi"><span>Cost</span><b style="font-size:20px">${rupiahShort(S.cost)}</b><small>${S.payroll ? 'payroll ' + rupiahShort(S.payroll) : ''}</small></div></div>
-  <h3 style="font-size:15px;margin:6px 0 8px">Complaint</h3>${comp.length ? `<div class="tbl-wrap"><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Sesi</th><th>Customer</th><th>Keterangan</th></tr></thead><tbody>${comp.map(c => `<tr><td>${fmtDate(c.tanggal)}</td><td><span class="chip c-bad">${esc(c.tipe || '—')}</span></td><td>${esc(c.sesi || '')}</td><td>${esc(c.nama_customer || '')}</td><td class="wrap">${esc(c.keterangan || '')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Tidak ada complaint.</p>'}
-  <h3 style="font-size:15px;margin:16px 0 8px">Cost</h3>${cost.length ? `<div class="tbl-wrap"><table><thead><tr><th>Bulan</th><th>Batch</th><th class="num">Box</th><th class="num">Weekly / payroll</th><th class="num">Tunjangan</th><th class="num">Total cost</th></tr></thead><tbody>${cost.sort((a, b) => String(a.batch).localeCompare(String(b.batch), 'id', { numeric: true })).map(c => `<tr><td>${monthLabel(c.bulan)}</td><td>${esc(c.batch)}</td><td class="num">${num(c.total_box)}</td><td class="num">${rupiah(c.total_weekly)}</td><td class="num">${rupiah(Number(c.estafet) + Number(c.jarak) + Number(c.parkir) + Number(c.gedung) + Number(c.dll))}</td><td class="num"><b>${rupiah(c.total_cost)}</b></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Tidak ada data cost.</p>'}
-  <h3 style="font-size:15px;margin:16px 0 8px">SLA per sesi</h3><div class="tbl-wrap" style="max-height:280px;overflow:auto"><table><thead><tr><th>Tanggal</th><th>Batch</th><th>Sesi</th><th>Bisnis</th><th class="num">Box</th><th class="num">Terlambat</th><th class="num">Selesai</th></tr></thead><tbody>${sla.map(x => `<tr><td>${fmtShort(x.tanggal)}</td><td>${esc(x.batch || '')}</td><td>${esc(x.sesi)}</td><td>${esc(x.mode)}</td><td class="num">${x.qty_box}</td><td class="num">${x.box_terlambat ? `<span class="chip c-warn">${x.box_terlambat}</span>` : 0}</td><td class="num">${(x.max_time || '').slice(0, 5)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">Belum ada data.</td></tr>'}</tbody></table></div>`);
+  const cost = fCost().filter(r => r.kKey === k).sort((a, b) => (a.bulan + a.batch).localeCompare(b.bulan + b.batch, 'id', { numeric: true })), comp = fComp().filter(r => r.kKey === k);
+  const any = cost[cost.length - 1] || comp[0]; if (!any) return; const S = ringkas(cost);
+  openModal(`${modalHead(any.label, esc(any.jab) + ' · ' + esc(any.areaNama) + ' · ' + esc(any.branchNama) + (any.pid ? '' : ' · belum punya akun'))}
+  <div class="kpis" style="margin-top:0"><div class="kpi"><span>Box</span><b>${num(S.box)}</b><small>HG ${num(S.hg)} · BK ${num(S.bk)} · GT ${num(S.gt)}</small></div><div class="kpi"><span>Late</span><b>${num(S.late)}</b><small>${fmtPct(S.pLate)}</small></div><div class="kpi"><span>Complaint</span><b>${num(S.comp)}</b><small>${fmtPct(S.pComp, 2)}</small></div><div class="kpi"><span>Total Weekly</span><b style="font-size:20px">${rupiahShort(S.weekly)}</b></div></div>
+  <h3 style="font-size:15px;margin:6px 0 8px">Per batch</h3><div class="tbl-wrap"><table><thead><tr><th>Bulan</th><th>Batch</th><th>Area</th><th class="num">Box</th><th class="num">HG/BK/GT</th><th class="num">Late</th><th class="num">Max time</th><th class="num">Complaint</th><th class="num">Total Weekly</th><th class="num">Total Cost</th></tr></thead><tbody>
+  ${cost.map(c => `<tr><td>${monthLabel(c.bulan)}</td><td>${esc(c.batch)}</td><td>${esc(c.areaNama)}</td><td class="num">${num(c.total_box)}</td><td class="num">${num(c.box_hg)}/${num(c.box_bk)}/${num(c.box_gt)}</td><td class="num">${num(c.late_delivery)}</td><td class="num">${c.max_time ? c.max_time.slice(0, 5) : '—'}</td><td class="num">${num(c.complaint)}</td><td class="num">${rupiah(c.total_weekly)}</td><td class="num">${rupiah(c.total_cost)}</td></tr>`).join('') || '<tr><td colspan="10" class="empty">Tidak ada data cost.</td></tr>'}</tbody></table></div>
+  <h3 style="font-size:15px;margin:16px 0 8px">Detail complaint</h3>${comp.length ? `<div class="tbl-wrap"><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Sesi</th><th>Customer</th><th>Keterangan</th></tr></thead><tbody>${comp.sort((a, b) => b.tanggal.localeCompare(a.tanggal)).map(c => `<tr><td>${fmtDate(c.tanggal)}</td><td><span class="chip c-bad">${esc(c.tipe || '—')}</span></td><td>${esc(c.sesi || '')}</td><td>${esc(c.nama_customer || '')}</td><td class="wrap">${esc(c.keterangan || '')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Tidak ada detail complaint.</p>'}`);
 }
 
 /* ---------- Akun kurir ---------- */
@@ -1064,9 +1067,9 @@ async function setSync() {
   const um = ids.length ? await q(sb.from('sync_unmatched').select('*').in('sync_id', ids)) : [];
   const jalan = logs.some(l => l.status === 'berjalan');
   const chip = s => s === 'sukses' ? 'c-ok' : s === 'gagal' ? 'c-bad' : 'c-warn';
-  out.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><div><h2>Sinkronisasi spreadsheet</h2><p class="sub" style="margin:0">SLA, complaint, dan cost disalin otomatis setiap hari sekitar pukul 01.00 (60 hari / 3 bulan terakhir). Gunakan tombol ini kalau perlu data terbaru sebelum jadwal.</p></div>
+  out.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><div><h2>Sinkronisasi spreadsheet</h2><p class="sub" style="margin:0">Cost dan complaint disalin otomatis setiap hari sekitar pukul 01.00 (cost 3 bulan terakhir, complaint 60 hari terakhir). Gunakan tombol ini kalau perlu data terbaru sebelum jadwal.</p></div>
     <div class="row"><button class="btn-soft" id="syPenuh" ${jalan ? 'disabled' : ''}>Sinkronkan penuh</button><button class="btn-primary" id="syBtn" ${jalan ? 'disabled' : ''}>${jalan ? 'Sedang berjalan…' : 'Sinkronkan sekarang'}</button></div></div>
-    <div class="kpis">${['SLA', 'Complaint', 'Cost'].map(s => { const l = latest[s]; return `<div class="kpi"><span>${s}</span><b style="font-size:20px">${l ? `<span class="chip ${chip(l.status)}">${l.status}</span>` : '—'}</b><small>${l ? fmtDT(l.mulai) + ' · ' + (l.baris_masuk || 0).toLocaleString('id-ID') + ' baris' : 'Belum pernah'}</small></div>`; }).join('')}</div></div>
+    <div class="kpis">${['Cost', 'Complaint'].map(s => { const l = latest[s]; return `<div class="kpi"><span>${s}</span><b style="font-size:20px">${l ? `<span class="chip ${chip(l.status)}">${l.status}</span>` : '—'}</b><small>${l ? fmtDT(l.mulai) + ' · ' + (l.baris_masuk || 0).toLocaleString('id-ID') + ' baris' : 'Belum pernah'}</small></div>`; }).join('')}</div></div>
   <div class="card"><h2>Nama yang tidak cocok</h2><p class="sub">Baris ini tetap tersimpan, tetapi tidak masuk ke performa kurir karena namanya tidak sama dengan data kurir. Samakan ejaan di spreadsheet atau di Akun kurir, lalu sinkronkan ulang.</p>
   ${um.length ? `<div class="tbl-wrap"><table><thead><tr><th>Sumber</th><th>Nama di spreadsheet</th></tr></thead><tbody>${um.sort((a, b) => a.nama.localeCompare(b.nama)).map(u => `<tr><td>${esc(u.sumber)}</td><td><span class="chip c-warn">${esc(u.nama)}</span></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Semua nama cocok.</p>'}</div>
   <div class="card"><h2>Riwayat</h2><div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Mulai</th><th>Sumber</th><th>Mode</th><th>Status</th><th class="num">Masuk</th><th class="num">Dilewati</th><th>Keterangan</th></tr></thead><tbody>
