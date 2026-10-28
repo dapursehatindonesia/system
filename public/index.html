@@ -40,12 +40,21 @@ input{background:var(--field);border:1px solid var(--line);border-radius:12px;pa
 .avatar{width:46px;height:46px;border-radius:14px;background:var(--sun);color:var(--hg-deep);display:grid;place-items:center;font-weight:800;flex:none}
 .who b{display:block;font-size:17px}.who small{color:var(--muted)}
 .who .acts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
-.grp{margin:22px 0 10px;font-size:13px;font-weight:700;color:var(--muted)}
-.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.app{display:flex;flex-direction:column;gap:4px;padding:16px;border:1px solid var(--line);border-radius:16px;background:var(--field);text-decoration:none;color:var(--ink);transition:border-color .15s,transform .15s}
-.app:hover{border-color:var(--hg-500);transform:translateY(-2px)}
-.app b{font-size:16px}.app small{color:var(--muted)}
-.tag{align-self:flex-start;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--hg-50);color:var(--hg-500);border:1px solid var(--line)}
+.grp{margin:26px 0 12px;font-size:14px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:10px}
+.grp::after{content:"";flex:1;height:1px;background:var(--line)}
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.app{position:relative;display:flex;align-items:flex-start;gap:14px;padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--field);text-decoration:none;color:var(--ink);transition:border-color .15s,background .15s}
+.app:hover{border-color:var(--hg-500);background:var(--hg-50)}
+.app:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.app .ico{flex:none;width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:var(--hg-50);color:var(--hg);border:1px solid var(--line)}
+.app .ico svg{width:24px;height:24px}
+.app b{display:block;font-size:16px;margin-top:2px}.app small{display:block;color:var(--muted);font-size:13px;line-height:1.4;margin-top:3px}
+.app.pusat{background:var(--hg);border-color:var(--hg);color:#fff}
+.app.pusat:hover{background:var(--hg-700);border-color:var(--hg-700)}
+.app.pusat .ico{background:var(--sun);color:var(--hg-deep);border-color:transparent}
+.app.pusat small{color:#bfe0cc}
+.tag{position:absolute;top:12px;right:12px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--sun);color:var(--hg-deep)}
+.today{color:#a9c9b6;font-size:14px;margin-top:4px}
 .center{text-align:center;color:var(--muted);padding:30px 0}
 .modal{position:fixed;inset:0;background:rgba(5,20,13,.55);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
 .modal.open{display:flex}.modal .card{width:min(420px,100%)}
@@ -132,17 +141,30 @@ async function afterLogin(user) {
   showPortal(prof, apps);
 }
 
+const APP_INFO = {
+  backoffice: ['Kelola akun, hak akses, dan laporan semua divisi', '<path d="M4 5h16v14H4z"/><path d="M4 10h16M9 10v9"/>'],
+  'dlv-kurir': ['Absen, ajukan reimburse, dan lihat performa', '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'],
+  'dlv-mgmt': ['Dashboard performa, absensi, dan approval', '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'],
+  'dlv-train': ['Modul training, kuis, dan tanya trainer', '<path d="M2 8l10-5 10 5-10 5z"/><path d="M6 10v5c3 2 9 2 12 0v-5"/>']
+};
+const ICON_DEF = '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>';
+function sapa() { const h = new Date().getHours(); return h < 11 ? 'Selamat pagi' : h < 15 ? 'Selamat siang' : h < 18 ? 'Selamat sore' : 'Selamat malam'; }
 function showPortal(prof, apps) {
   view('vPortal');
-  $('#heroTitle').textContent = 'Halo, ' + prof.nama.split(' ')[0];
-  $('#heroSub').textContent = 'Pilih aplikasi yang ingin dibuka';
+  const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'], BLN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'], d = new Date();
+  $('#heroTitle').textContent = sapa() + ', ' + prof.nama.split(' ')[0];
+  $('#heroSub').textContent = HARI[d.getDay()] + ', ' + d.getDate() + ' ' + BLN[d.getMonth()] + ' ' + d.getFullYear();
   $('#pAv').textContent = prof.nama.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
   $('#pName').textContent = prof.nama;
-  $('#pRole').textContent = (prof.positions ? prof.positions.nama : prof.position_id) + ' · ' + (prof.divisions ? prof.divisions.nama : 'All divisi');
+  $('#pRole').textContent = (prof.positions ? prof.positions.nama : prof.position_id) + ', ' + (prof.divisions ? prof.divisions.nama : 'All divisi');
   msg('#portalMsg', DENIED ? 'Anda tidak punya akses ke aplikasi tersebut.' : !apps.length ? 'Akun Anda belum punya akses ke aplikasi mana pun. Hubungi admin.' : '', DENIED ? 'bad' : 'info');
   const groups = {};
   apps.forEach(a => (groups[a.divisi || 'All divisi'] = groups[a.divisi || 'All divisi'] || []).push(a));
-  $('#appList').innerHTML = Object.entries(groups).map(([g, list]) => `<div class="grp">${esc(g)}</div><div class="apps">${list.map(a => `<a class="app" href="${esc(a.url)}/"><b>${esc(a.nama)}</b><small>${esc(a.url)}</small>${a.utama ? '<span class="tag">Utama</span>' : ''}</a>`).join('')}</div>`).join('');
+  const urut = Object.keys(groups).sort((a, b) => (a === 'All divisi' ? -1 : b === 'All divisi' ? 1 : a.localeCompare(b)));
+  $('#appList').innerHTML = urut.map(g => `<div class="grp">${esc(g)}</div><div class="apps">${groups[g].map(a => {
+    const info = APP_INFO[a.id] || ['', ICON_DEF];
+    return `<a class="app${g === 'All divisi' ? ' pusat' : ''}" href="${esc(a.url)}/"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${info[1]}</svg></span><span><b>${esc(a.nama)}</b>${info[0] ? `<small>${esc(info[0])}</small>` : ''}</span>${a.utama ? '<span class="tag">Utama</span>' : ''}</a>`;
+  }).join('')}</div>`).join('');
 }
 
 $('#togglePw').onclick = () => { const i = $('#uPass'), show = i.type === 'password'; i.type = show ? 'text' : 'password'; $('#togglePw').textContent = show ? 'Tutup' : 'Lihat'; };
