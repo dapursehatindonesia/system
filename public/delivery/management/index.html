@@ -640,9 +640,10 @@ function kurirForm(id, after) {
 let ATab = 'saya';
 function pageAbsensi(v) {
   stopCam();
-  v.innerHTML = `<div class="tabs" role="tablist">${[['saya', 'Absen saya'], ['rekap', 'Rekap absensi kurir'], ['laporan', 'Laporan & unduh Excel']].map(([k, l]) => `<button role="tab" aria-selected="${ATab === k}" data-t="${k}">${l}</button>`).join('')}</div><div id="aOut"></div>`;
+  v.innerHTML = `<div class="tabs" role="tablist">${[['saya', 'Absen saya'], ['rekap', 'Rekap absensi kurir']].map(([k, l]) => `<button role="tab" aria-selected="${ATab === k}" data-t="${k}">${l}</button>`).join('')}</div><div id="aOut"></div>`;
   v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { ATab = b.dataset.t; pageAbsensi(v); });
-  (ATab === 'saya' ? absenSaya() : ATab === 'rekap' ? absenRekap() : absenLaporan());
+  if (ATab === 'laporan') ATab = 'saya';
+  (ATab === 'saya' ? absenSaya() : absenRekap());
 }
 let CAM = null;
 const AB = { pos: null, posErr: '', camErr: '', camReady: false, mine: [] };
@@ -678,7 +679,8 @@ function snapBlob(sesi) {
     c.toBlob(res, 'image/jpeg', .7);
   });
 }
-const sesiStaf = () => D.sessions.filter(s => s.untuk === 'staf' && s.hari.includes(isodow(TODAY))).sort((a, b) => a.jam_mulai.localeCompare(b.jam_mulai));
+// Absen staf (Masuk/Pulang) boleh kapan saja; yang wajib hanya lokasi & foto
+const sesiStaf = () => D.sessions.filter(s => s.untuk === 'staf').sort((a, b) => a.jam_mulai.localeCompare(b.jam_mulai));
 async function absenSaya() {
   const out = $('#aOut');
   if (ME.position_id === 'kurir') { out.innerHTML = '<div class="card empty">Kurir absen lewat aplikasi Kurir.</div>'; return; }
@@ -706,7 +708,7 @@ function updAbsen() {
   $('#absenBtns').innerHTML = ses.map(s => {
     const done = today.find(a => a.sesi === s.sesi);
     if (done) return `<span class="chip ${statusChip(done.status)}">${s.sesi} ${done.jam ? done.jam.slice(0, 5) : done.status}</span>`;
-    const buka = t >= s.jam_mulai && t <= s.jam_selesai, why = !buka ? `Buka ${s.jam_mulai.slice(0, 5)}–${s.jam_selesai.slice(0, 5)}` : !AB.camReady ? 'Kamera belum menyala' : !l.ok ? 'Lokasi belum sesuai' : '';
+    const why = !AB.camReady ? 'Kamera belum menyala' : !l.ok ? 'Lokasi belum sesuai' : '';
     return `<button class="btn-primary" data-absen="${s.sesi}" ${why ? 'disabled' : ''} title="${why}">Absen ${s.sesi.toLowerCase()}</button>`;
   }).join('');
   $('#absenBtns').querySelectorAll('[data-absen]').forEach(b => b.onclick = () => run(b, async () => {
