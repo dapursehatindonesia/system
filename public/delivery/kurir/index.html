@@ -348,13 +348,16 @@ function formR(tipe, all, v) {
 
 /* ---------- Performa (mingguan dari sheet Cost; detail complaint per tanggal) ----------
    Data yang tampil = baris dengan Nama + Branch sama dengan akun ini (dijaga RLS). */
-const PF = { bulan: monthKey(TODAY), tab: 'mingguan' };
+const PF = { bulan: monthKey(TODAY), tab: 'mingguan', page: 0, cache: null };
+const PF_SIZE = 8;   // baris per halaman
 // 00:00:00 = tidak ada pengiriman → tidak ikut dirata-rata
 const toSec = t => { if (!t) return null; const [h, m, s] = String(t).split(':').map(Number); const v = h * 3600 + m * 60 + (s || 0); return v > 0 ? v : null; };
 const fromSec = s => s == null ? '—' : pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60));
 async function pagePerforma(v) {
-  v.innerHTML = '<h1>Performa saya</h1><div class="card empty">Memuat…</div>';
   const bulan = PF.bulan, s = bulan + '-01', e = monthKey(addDays(s, 32)) + '-01';
+  // Data satu bulan diambil sekali; ganti halaman/tab tidak mengambil ulang
+  if (!PF.cache || PF.cache.bulan !== bulan) {
+  v.innerHTML = '<h1>Performa saya</h1><div class="card empty">Memuat…</div>';
   const [costs, comp, tg, def, baru] = await Promise.all([
     q(sb.from('dlv_costs').select('*').eq('bulan', s)),
     q(sb.from('dlv_complaints').select('*').gte('tanggal', s).lt('tanggal', e).order('tanggal', { ascending: false })),
@@ -362,6 +365,9 @@ async function pagePerforma(v) {
     q(sb.from('dlv_target_default').select('*')),
     q(sb.from('dlv_complaints').select('*').gte('tanggal', addDays(TODAY, -7)).order('tanggal', { ascending: false }))
   ]);
+  PF.cache = { bulan, costs, comp, tg, def, baru };
+  }
+  const { costs, comp, tg, def, baru } = PF.cache;
   const isPay = c => /payroll/i.test(c.batch || ''), lbl = c => /^\d+$/.test(c.batch || '') ? 'Batch ' + c.batch : c.batch;
   costs.sort((a, b) => String(b.batch).localeCompare(String(a.batch), 'id', { numeric: true }));
   const S = k => costs.reduce((a, x) => a + Number(x[k] || 0), 0);
@@ -369,7 +375,7 @@ async function pagePerforma(v) {
   const mt = costs.map(x => toSec(x.max_time)).filter(x => x != null), mAvg = mt.length ? mt.reduce((a, x) => a + x, 0) / mt.length : null;
   const target = tg[0] ? tg[0].target : ((def.find(x => x.kontrak === ME.kontrak) || {}).target || 0);
   const pct = target ? box / target * 100 : 0, r = 46, C = 2 * Math.PI * r, off = C * (1 - Math.min(pct, 100) / 100);
-  const months = [0, 1, 2].map(i => { const t = new Date(); return iso(new Date(t.getFullYear(), t.getMonth() - i, 1)).slice(0, 7); });
+  const months = Array.from({ length: 12 }, (_, i) => { const t = new Date(); return iso(new Date(t.getFullYear(), t.getMonth() - i, 1)).slice(0, 7); });
   v.innerHTML = `<h1>Performa saya</h1>
   <label class="f" style="margin-bottom:14px"><span>Bulan</span><select id="pfB">${months.map(m => `<option value="${m}" ${m === bulan ? 'selected' : ''}>${monthLabel(m)}</option>`).join('')}</select></label>
   ${baru.length ? `<div class="card alert"><div class="row" style="justify-content:space-between"><h2>${baru.length} complaint baru minggu ini</h2><span class="chip c-bad">Perlu perhatian</span></div>${baru.slice(0, 2).map(c => `<div class="li" style="display:block"><div class="row" style="justify-content:space-between"><b>${esc(c.tipe || 'Complaint')}</b><span class="small muted">${fmtDate(c.tanggal)}</span></div><small style="display:block">${esc(c.nama_customer || '')}${c.sesi ? ' · ' + esc(c.sesi) : ''}</small><div class="small" style="margin-top:4px">${esc(c.keterangan || '')}</div></div>`).join('')}<button class="btn-sm" id="seeComp" style="margin-top:8px">Lihat semua complaint</button></div>` : ''}
@@ -385,12 +391,17 @@ async function pagePerforma(v) {
     <div class="stat"><span>Avg delivery time</span><b>${fromSec(mAvg)}</b><small>jam selesai</small></div></div>
   <div class="tabs" role="tablist">${[['mingguan', 'Per minggu'], ['complaint', 'Detail complaint']].map(([k, l]) => `<button role="tab" aria-selected="${PF.tab === k}" data-t="${k}">${l}</button>`).join('')}</div>
   <div class="card" id="pfOut"></div><p class="small muted" style="text-align:center">Data dari spreadsheet, diperbarui setiap hari pukul 01.00.</p>`;
-  $('#pfB').onchange = e => { PF.bulan = e.target.value; pagePerforma(v); };
-  v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { PF.tab = b.dataset.t; pagePerforma(v); });
-  const sc = $('#seeComp'); if (sc) sc.onclick = () => { PF.tab = 'complaint'; pagePerforma(v); };
+  $('#pfB').onchange = e => { PF.bulan = e.target.value; PF.page = 0; pagePerforma(v); };
+  v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { PF.tab = b.dataset.t; PF.page = 0; pagePerforma(v); });
+  const sc = $('#seeComp'); if (sc) sc.onclick = () => { PF.tab = 'complaint'; PF.page = 0; pagePerforma(v); };
+  const list = PF.tab === 'mingguan' ? costs : comp, pages = Math.max(1, Math.ceil(list.length / PF_SIZE));
+  if (PF.page >= pages) PF.page = pages - 1;
+  const shown = list.slice(PF.page * PF_SIZE, PF.page * PF_SIZE + PF_SIZE);
+  const pager = list.length > PF_SIZE ? `<div class="row" style="justify-content:space-between;margin-top:12px"><button class="btn-sm" data-pg="-1" ${PF.page ? '' : 'disabled'}>‹ Sebelumnya</button><span class="small muted">Hal ${PF.page + 1} / ${pages}</span><button class="btn-sm" data-pg="1" ${PF.page < pages - 1 ? '' : 'disabled'}>Berikutnya ›</button></div>` : '';
   const out = $('#pfOut');
-  if (PF.tab === 'mingguan') out.innerHTML = `<h2>Per minggu</h2><div class="list">${costs.map(c => `<div class="li click" data-c="${c.id}" tabindex="0"><div><b>${esc(lbl(c))}</b><small>${isPay(c) ? 'Payroll' : num(c.total_box) + ' box · late ' + num(c.late_delivery) + ' · complaint ' + num(c.complaint)}${c.area ? ' · ' + esc(c.area) : ''}</small></div><div class="r"><b>${rupiah(c.total_weekly)}</b></div></div>`).join('') || '<div class="empty">Belum ada rekap bulan ini.</div>'}</div>`;
-  if (PF.tab === 'complaint') out.innerHTML = `<h2>Detail complaint</h2><div class="list">${comp.map(c => `<div class="li" style="display:block"><div class="row" style="justify-content:space-between"><b>${esc(c.tipe || 'Complaint')}</b><span class="small muted">${fmtDate(c.tanggal)}</span></div><small style="display:block;margin-top:2px">${esc(c.nama_customer || '')}${c.sesi ? ' · ' + esc(c.sesi) : ''}</small><div class="small" style="margin-top:4px">${esc(c.keterangan || '')}</div></div>`).join('') || '<div class="empty">Tidak ada complaint. Pertahankan!</div>'}</div>`;
+  if (PF.tab === 'mingguan') out.innerHTML = `<h2>Per minggu</h2><div class="list">${shown.map(c => `<div class="li click" data-c="${c.id}" tabindex="0"><div><b>${esc(lbl(c))}</b><small>${isPay(c) ? 'Payroll' : num(c.total_box) + ' box · late ' + num(c.late_delivery) + ' · complaint ' + num(c.complaint)}${c.area ? ' · ' + esc(c.area) : ''}</small></div><div class="r"><b>${rupiah(c.total_weekly)}</b></div></div>`).join('') || '<div class="empty">Belum ada rekap bulan ini.</div>'}</div>${pager}`;
+  if (PF.tab === 'complaint') out.innerHTML = `<h2>Detail complaint</h2><div class="list">${shown.map(c => `<div class="li" style="display:block"><div class="row" style="justify-content:space-between"><b>${esc(c.tipe || 'Complaint')}</b><span class="small muted">${fmtDate(c.tanggal)}</span></div><small style="display:block;margin-top:2px">${esc(c.nama_customer || '')}${c.sesi ? ' · ' + esc(c.sesi) : ''}</small><div class="small" style="margin-top:4px">${esc(c.keterangan || '')}</div></div>`).join('') || '<div class="empty">Tidak ada complaint. Pertahankan!</div>'}</div>${pager}`;
+  out.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => { PF.page += Number(b.dataset.pg); pagePerforma(v); out.scrollIntoView({ block: 'start' }); });
   out.querySelectorAll('[data-c]').forEach(x => x.onclick = () => { const c = costs.find(y => String(y.id) === x.dataset.c); openSheet(esc(lbl(c)), `<dl class="kv"><dt>Area · branch</dt><dd>${esc(c.area || '—')} · ${esc(c.branch || '—')}</dd><dt>Total box</dt><dd>${num(c.total_box)} (HG ${num(c.box_hg)} · BK ${num(c.box_bk)} · GT ${num(c.box_gt)})</dd><dt>Late delivery</dt><dd>${num(c.late_delivery)}</dd><dt>Avg delivery time</dt><dd>${c.max_time ? c.max_time.slice(0, 5) : '—'}</dd><dt>Complaint</dt><dd>${num(c.complaint)}</dd><dt>Estafet</dt><dd>${rupiah(c.estafet)}</dd><dt>Jarak</dt><dd>${rupiah(c.jarak)}</dd><dt>Parkir</dt><dd>${rupiah(c.parkir)}</dd><dt>Gedung</dt><dd>${rupiah(c.gedung)}</dd><dt>Lain-lain</dt><dd>${rupiah(c.dll)}</dd><dt>Total Weekly</dt><dd style="font-size:17px">${rupiah(c.total_weekly)}</dd></dl>`); });
 }
 
