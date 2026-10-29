@@ -191,6 +191,8 @@ input.big{width:20px;height:20px;accent-color:var(--hg-500);cursor:pointer}
 code{font-size:13px;background:var(--hg-50);padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
 .brand-mark.bo{background:#fff;color:var(--hg-deep)}
 body::before{background:var(--hg-deep)}
+.tabs a.tab-link{display:inline-block;padding:7px 14px;border-radius:9px;font-weight:700;color:var(--muted);text-decoration:none}
+.tabs a.tab-link[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .pager{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px}
 .brand-logo{height:34px;width:auto;display:block}
 [hidden]{display:none!important}
@@ -398,7 +400,7 @@ function showPassword(title, nama, username, pw) {
   $('#pwCopy').onclick = () => navigator.clipboard.writeText(`Login Healthy Go\nAlamat: ${location.origin}\nLogin dengan: ${username}\nPassword: ${pw}`).then(() => toast('Data login disalin.'), () => toast('Gagal menyalin, catat manual.', true));
 }
 
-const NAV = [['akun', 'Akun'], ['impor', 'Import akun CSV'], ['matriks', 'Matriks akses'], ['pengecualian', 'Pengecualian'], ['master', 'Master data'], ['laporan', 'Laporan SDM'], ['riwayat', 'Riwayat aktivitas']];
+
 
 /* ---------- Akun ---------- */
 const AF = { q: '', divisi: '', jabatan: '', status: 'aktif' };
@@ -663,8 +665,7 @@ function pageLaporan(v) {
   v.innerHTML = `<div class="card"><div class="row">
     <label class="f"><span>Divisi</span><select id="lsDiv"><option value="">All divisi</option>${ORG.divisions.map(d => opt(d.id, d.nama, LS.divisi)).join('')}<option value="-" ${LS.divisi === '-' ? 'selected' : ''}>All divisi</option></select></label>
     <label class="f"><span>Status</span><select id="lsSt">${[['aktif', 'Aktif'], ['nonaktif', 'Nonaktif'], ['', 'Semua']].map(([k, l]) => opt(k, l, LS.status)).join('')}</select></label>
-    <span class="grow"></span><button class="btn-primary" id="lsXls">Unduh Excel</button></div>
-    <p class="small muted" style="margin:10px 0 0">Laporan absensi semua divisi ditambahkan setelah modul absensi terpasang.</p></div>
+    <span class="grow"></span><button class="btn-primary" id="lsXls">Unduh Excel</button></div></div>
   <div class="kpis"><div class="kpi lead"><span>Total SDM aktif</span><b>${num(aktif.length)}</b><small>${ORG.profiles.length - aktif.length} nonaktif</small></div>
     ${ORG.divisions.map(d => `<div class="kpi"><span>${esc(d.nama)}</span><b>${aktif.filter(p => p.division_id === d.id).length}</b><small>orang aktif</small></div>`).join('')}</div>
   <div class="card"><h2>Headcount per jabatan</h2><div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Jabatan</th>${divs.map(d => `<th class="num">${esc(d.nama)}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>
@@ -860,14 +861,106 @@ function tampilHasil() {
     { name: 'Info', filter: false, freeze: false, columns: [{ label: 'Keterangan', width: 22 }, { label: 'Isi', width: 60 }], rows: [['Alamat login', location.origin], ['Cara login', 'Username (atau email kalau diisi) + password sementara'], ['Setelah login', 'Minta setiap orang mengganti password lewat menu Ganti password'], ['Dibuat oleh', ME.nama], ['Tanggal', fmtDate(new Date())]] }]);
 }
 
-/* ---------- Router ---------- */
-const PAGES = { akun: pageAkun, impor: pageImpor, matriks: pageMatriks, pengecualian: pagePengecualian, master: pageMaster, laporan: pageLaporan, riwayat: pageRiwayat };
+/* ---------- Laporan absensi (semua divisi) ---------- */
+async function inChunks(ids, make, size = 60) {
+  let out = []; for (let i = 0; i < ids.length; i += size) out = out.concat(await fetchAll(() => make(ids.slice(i, i + size)))); return out;
+}
+const pd = n => String(n).padStart(2, '0'), isoD = d => d.getFullYear() + '-' + pd(d.getMonth() + 1) + '-' + pd(d.getDate());
+const parseD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addD = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return isoD(d); };
+const isoDow = s => ((parseD(s).getDay() + 6) % 7) + 1;
+const NAMA_HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+const LB = { dari: TODAY.slice(0, 8) + '01', sampai: TODAY, divisi: '', jab: '', area: '' };
+async function pageLapAbsensi(v) {
+  if (!LB.ref) {
+    const [ses, pts, pg, ar, br] = await Promise.all([q(sb.from('attendance_sessions').select('*')), q(sb.from('attendance_points').select('id,nama')),
+      fetchAll(() => sb.from('dlv_penugasan').select('*').order('id')), q(sb.from('dlv_areas').select('*').order('nama')), q(sb.from('dlv_branches').select('*'))]);
+    LB.ref = { ses, pts, pg, ar, br };
+  }
+  const R0 = LB.ref, areaNm = id => (R0.ar.find(a => a.id === id) || {}).nama || '', brNm = id => (R0.br.find(b => b.id === id) || {}).nama || '';
+  const areaOfP = pid => (R0.pg.find(x => x.profile_id === pid && !x.selesai) || {}).area_id || null;
+  v.innerHTML = `<div class="card"><h2>Laporan absensi</h2><p class="sub">Semua divisi. Kurir wajib absen per sesi (Lunch, Dinner, Weekend) sejak ditugaskan ke area; jabatan lain wajib absen masuk setiap hari kerja. Hari ini hanya menghitung yang sudah absen. Maksimal 92 hari.</p>
+    <div class="row">
+      <label class="f"><span>Dari</span><input type="date" id="lbDari" value="${LB.dari}" max="${TODAY}"></label>
+      <label class="f"><span>Sampai</span><input type="date" id="lbSampai" value="${LB.sampai}" max="${TODAY}"></label>
+      <label class="f"><span>Divisi</span><select id="lbDiv"><option value="">Semua</option>${ORG.divisions.map(d => opt(d.id, d.nama, LB.divisi)).join('')}</select></label>
+      <label class="f"><span>Jabatan</span><select id="lbJab"><option value="">Semua</option>${ORG.positions.filter(p => p.cakupan !== 'semua').map(p => opt(p.id, p.nama, LB.jab)).join('')}</select></label>
+      <label class="f"><span>Area kurir</span><select id="lbArea"><option value="">Semua</option>${R0.ar.map(a => opt(a.id, a.nama + ' (' + brNm(a.branch_id) + ')', LB.area)).join('')}</select></label>
+      <button class="btn-soft" id="lbShow">Tampilkan</button><button class="btn-primary" id="lbXls">Unduh Excel</button>
+    </div></div><div id="lbRes"></div>`;
+  const baca = () => {
+    Object.assign(LB, { dari: $('#lbDari').value, sampai: $('#lbSampai').value, divisi: $('#lbDiv').value, jab: $('#lbJab').value, area: $('#lbArea').value });
+    if (!LB.dari || !LB.sampai || LB.dari > LB.sampai) throw new Error('Tanggal "dari" harus sebelum "sampai".');
+    if ((parseD(LB.sampai) - parseD(LB.dari)) / 864e5 > 92) throw new Error('Rentang maksimal 92 hari.');
+  };
+  const hitung = async () => {
+    const orang = ORG.profiles.filter(p => p.aktif && pos(p.position_id).cakupan !== 'semua' && (!LB.divisi || p.division_id === LB.divisi) && (!LB.jab || p.position_id === LB.jab) && (!LB.area || (p.position_id === 'kurir' && areaOfP(p.id) === LB.area)));
+    const abs = await inChunks(orang.map(p => p.id), x => sb.from('attendance').select('id,profile_id,tanggal,sesi,status,jam,point_id,jarak_m,catatan').in('profile_id', x).gte('tanggal', LB.dari).lte('tanggal', LB.sampai).order('id'));
+    const idx = {}; abs.forEach(a => idx[a.profile_id + '|' + a.tanggal + '|' + a.sesi] = a);
+    const sesHari = (u, d) => R0.ses.filter(s => s.untuk === u && s.hari.includes(isoDow(d)) && s.sesi !== 'Pulang').map(s => s.sesi);
+    const detail = [];
+    orang.forEach(p => {
+      const kur = p.position_id === 'kurir', mulai = kur ? (R0.pg.filter(x => x.profile_id === p.id).map(x => x.mulai).sort()[0] || LB.dari) : LB.dari;
+      for (let d = LB.dari; d <= LB.sampai && d <= TODAY; d = addD(d, 1)) {
+        if (d < mulai) continue;
+        sesHari(kur ? 'kurir' : 'staf', d).forEach(s => {
+          const a = idx[p.id + '|' + d + '|' + s]; if (!a && d === TODAY) return;
+          const pl = s === 'Masuk' ? idx[p.id + '|' + d + '|Pulang'] : null;
+          detail.push({ p, tanggal: d, sesi: s, status: a ? a.status : 'Tidak absen', jam: a && a.jam ? a.jam.slice(0, 5) : '', pulang: pl && pl.jam ? pl.jam.slice(0, 5) : '', titik: a && a.point_id ? (R0.pts.find(t => t.id === a.point_id) || {}).nama || '' : '', jarak: a && a.jarak_m != null ? a.jarak_m : null, catatan: a ? a.catatan || '' : '' });
+        });
+      }
+    });
+    const rekap = orang.map(p => { const r = detail.filter(x => x.p === p), c = s => r.filter(x => x.status === s).length, ar = areaOfP(p.id);
+      return { p, nama: p.nama, div: div(p.division_id).nama || '', jab: pos(p.position_id).nama || '', area: areaNm(ar), branch: ar ? brNm((R0.ar.find(a => a.id === ar) || {}).branch_id) : '', wajib: r.length, hadir: c('Hadir'), izin: c('Izin'), sakit: c('Sakit'), tidak: c('Tidak absen'), pct: r.length ? c('Hadir') / r.length : null }; });
+    return { orang, detail, rekap };
+  };
+  $('#lbShow').onclick = () => run($('#lbShow'), async () => {
+    baca(); $('#lbRes').innerHTML = '<div class="card empty">Menghitung…</div>';
+    const H = await hitung(), tot = s => H.detail.filter(x => x.status === s).length, w = H.detail.length;
+    const cols = [{ key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama)}</b>` }, { key: 'div', label: 'Divisi' }, { key: 'jab', label: 'Jabatan' }, { key: 'area', label: 'Area', render: r => esc(r.area) || '—' },
+      { key: 'wajib', label: 'Wajib', num: true }, { key: 'hadir', label: 'Hadir', num: true }, { key: 'izin', label: 'Izin', num: true }, { key: 'sakit', label: 'Sakit', num: true },
+      { key: 'tidak', label: 'Tidak absen', num: true, render: r => r.tidak ? `<span class="chip c-bad">${r.tidak}</span>` : '0' },
+      { key: 'pct', label: '% hadir', num: true, render: r => r.pct == null ? '—' : `<span class="chip ${r.pct >= .95 ? 'c-ok' : r.pct >= .85 ? 'c-warn' : 'c-bad'}">${(r.pct * 100).toFixed(1)}%</span>` }];
+    const draw = () => { $('#lbTbl').innerHTML = dataTable('lbabs', cols, H.rekap, { sortKey: 'pct', freezeFirst: true, pageSize: 50, empty: 'Tidak ada data.' }); bindDataTable($('#lbTbl'), 'lbabs', draw); };
+    $('#lbRes').innerHTML = `<div class="kpis"><div class="kpi lead"><span>Kehadiran</span><b>${w ? (tot('Hadir') / w * 100).toFixed(1) + '%' : '—'}</b><small>${tot('Hadir').toLocaleString('id-ID')} dari ${w.toLocaleString('id-ID')} wajib absen</small></div><div class="kpi"><span>Orang</span><b>${H.orang.length}</b></div><div class="kpi"><span>Izin</span><b>${tot('Izin')}</b></div><div class="kpi"><span>Sakit</span><b>${tot('Sakit')}</b></div><div class="kpi"><span>Tidak absen</span><b>${tot('Tidak absen')}</b></div></div>
+    <div class="card"><h2>Rekap per orang</h2><div id="lbTbl"></div></div>`;
+    draw();
+  });
+  $('#lbXls').onclick = () => run($('#lbXls'), async () => {
+    baca(); const H = await hitung(); if (!H.detail.length) throw new Error('Tidak ada data untuk diunduh.');
+    XLSX_LITE.download(`Laporan Absensi ${LB.dari} sd ${LB.sampai}.xlsx`, [
+      { name: 'Rekap per orang', columns: [{ label: 'Nama', width: 26 }, { label: 'Divisi', width: 12 }, { label: 'Jabatan', width: 14 }, { label: 'Branch', width: 14 }, { label: 'Area', width: 14 }, { label: 'Wajib absen', type: 'num', width: 12 }, { label: 'Hadir', type: 'num', width: 9 }, { label: 'Izin', type: 'num', width: 9 }, { label: 'Sakit', type: 'num', width: 9 }, { label: 'Tidak absen', type: 'num', width: 12 }, { label: '% Kehadiran', type: 'pct', width: 12 }],
+        rows: H.rekap.sort((a, b) => a.div.localeCompare(b.div) || a.area.localeCompare(b.area) || a.nama.localeCompare(b.nama)).map(r => [r.nama, r.div, r.jab, r.branch, r.area, r.wajib, r.hadir, r.izin, r.sakit, r.tidak, r.pct]) },
+      { name: 'Detail harian', columns: [{ label: 'Tanggal', type: 'date', width: 12 }, { label: 'Hari', width: 7 }, { label: 'Nama', width: 26 }, { label: 'Divisi', width: 12 }, { label: 'Jabatan', width: 14 }, { label: 'Area', width: 14 }, { label: 'Sesi', width: 10 }, { label: 'Status', width: 12 }, { label: 'Jam absen', width: 10 }, { label: 'Jam pulang', width: 10 }, { label: 'Titik', width: 20 }, { label: 'Jarak (m)', type: 'num', width: 10 }, { label: 'Catatan', width: 30 }],
+        rows: H.detail.sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.p.nama.localeCompare(b.p.nama)).map(x => [x.tanggal, NAMA_HARI[parseD(x.tanggal).getDay()], x.p.nama, div(x.p.division_id).nama || '', pos(x.p.position_id).nama || '', areaNm(areaOfP(x.p.id)), x.sesi, x.status, x.jam, x.pulang, x.titik, x.jarak, x.catatan]) },
+      { name: 'Info', filter: false, freeze: false, columns: [{ label: 'Keterangan', width: 20 }, { label: 'Isi', width: 50 }], rows: [['Laporan', 'Absensi semua divisi'], ['Periode', LB.dari + ' s.d. ' + LB.sampai], ['Divisi', LB.divisi ? div(LB.divisi).nama : 'Semua'], ['Jabatan', LB.jab ? pos(LB.jab).nama : 'Semua'], ['Dibuat oleh', ME.nama], ['Dibuat pada', fmtDateTime(new Date())]] }
+    ]);
+    toast('Excel diunduh: ' + H.rekap.length + ' orang, ' + H.detail.length + ' baris.');
+  });
+}
+
+/* ---------- Router (menu + sub menu) ---------- */
+const SUB = {
+  akun: [['daftar', 'Daftar akun', pageAkun], ['impor', 'Import CSV', pageImpor]],
+  matriks: [['matriks', 'Matriks', pageMatriks], ['pengecualian', 'Pengecualian', pagePengecualian]],
+  master: [['master', 'Master data', pageMaster]],
+  laporan: [['sdm', 'Data SDM', pageLaporan], ['absensi', 'Absensi', pageLapAbsensi]],
+  riwayat: [['riwayat', 'Riwayat aktivitas', pageRiwayat]]
+};
+const MENU = [['akun', 'Akun'], ['matriks', 'Matriks akses'], ['master', 'Master data'], ['laporan', 'Laporan'], ['riwayat', 'Riwayat aktivitas']];
+const LAMA = { impor: 'akun/impor', pengecualian: 'matriks/pengecualian' };   // tautan lama tetap jalan
 function render() {
-  let id = location.hash.slice(1); if (!PAGES[id]) id = 'akun';
-  $('#nav').innerHTML = NAV.map(([k, l]) => `<a href="#${k}" class="${k === id ? 'active' : ''}" ${k === id ? 'aria-current="page"' : ''}>${l}</a>`).join('');
-  $('#pageTitle').textContent = NAV.find(n => n[0] === id)[1];
-  document.title = NAV.find(n => n[0] === id)[1] + ' · Backoffice';
-  Promise.resolve(PAGES[id]($('#view'))).catch(e => { $('#view').innerHTML = `<div class="card empty">Gagal memuat: ${esc(e.message)}</div>`; });
+  let [id, sub] = location.hash.slice(1).split('/');
+  if (LAMA[id]) [id, sub] = LAMA[id].split('/');
+  if (!SUB[id]) id = 'akun';
+  const subs = SUB[id], cur = subs.find(s => s[0] === sub) || subs[0];
+  $('#nav').innerHTML = MENU.map(([k, l]) => `<a href="#${k}" class="${k === id ? 'active' : ''}" ${k === id ? 'aria-current="page"' : ''}>${l}</a>`).join('');
+  const judul = MENU.find(n => n[0] === id)[1];
+  $('#pageTitle').textContent = judul; document.title = (subs.length > 1 ? cur[1] + ' · ' : '') + judul + ' · Backoffice';
+  const v = $('#view');
+  if (subs.length > 1) { v.innerHTML = `<div class="tabs" role="tablist">${subs.map(s => `<a role="tab" class="tab-link" aria-selected="${s === cur}" href="#${id}/${s[0]}">${s[1]}</a>`).join('')}</div><div id="subView"><div class="card empty">Memuat…</div></div>`; }
+  else v.innerHTML = '<div id="subView"><div class="card empty">Memuat…</div></div>';
+  Promise.resolve(cur[2]($('#subView'))).catch(e => { $('#subView').innerHTML = `<div class="card empty">Gagal memuat: ${esc(e.message)}</div>`; });
 }
 window.addEventListener('hashchange', () => { document.body.classList.remove('nav-open'); render(); window.scrollTo(0, 0); });
 $('#menuBtn').onclick = () => document.body.classList.add('nav-open');
@@ -885,3 +978,4 @@ $('#logoutLink').onclick = e => { e.preventDefault(); HGAuth.logout(); };
 </script>
 </body>
 </html>
+
