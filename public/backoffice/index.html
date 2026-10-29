@@ -879,7 +879,7 @@ async function pageLapAbsensi(v) {
   }
   const R0 = LB.ref, areaNm = id => (R0.ar.find(a => a.id === id) || {}).nama || '', brNm = id => (R0.br.find(b => b.id === id) || {}).nama || '';
   const areaOfP = pid => (R0.pg.find(x => x.profile_id === pid && !x.selesai) || {}).area_id || null;
-  v.innerHTML = `<div class="card"><h2>Laporan absensi</h2><p class="sub">Semua divisi. Kurir wajib absen per sesi (Lunch, Dinner, Weekend) sejak ditugaskan ke area; jabatan lain wajib absen masuk setiap hari kerja. Hari ini hanya menghitung yang sudah absen. Maksimal 92 hari.</p>
+  v.innerHTML = `<div class="card"><h2>Laporan absensi</h2><p class="sub">Semua divisi. Kurir wajib absen per sesi (Lunch, Dinner, Weekend) sejak ditugaskan ke area; jabatan lain wajib absen masuk setiap hari kerja. Absen di hari lain (mis. Minggu) ikut tercatat dan dihitung. Jam pulang kosong kalau hanya absen masuk. Maksimal 92 hari.</p>
     <div class="row">
       <label class="f"><span>Dari</span><input type="date" id="lbDari" value="${LB.dari}" max="${TODAY}"></label>
       <label class="f"><span>Sampai</span><input type="date" id="lbSampai" value="${LB.sampai}" max="${TODAY}"></label>
@@ -894,29 +894,37 @@ async function pageLapAbsensi(v) {
     if ((parseD(LB.sampai) - parseD(LB.dari)) / 864e5 > 92) throw new Error('Rentang maksimal 92 hari.');
   };
   const hitung = async () => {
-    const orang = ORG.profiles.filter(p => p.aktif && pos(p.position_id).cakupan !== 'semua' && (!LB.divisi || p.division_id === LB.divisi) && (!LB.jab || p.position_id === LB.jab) && (!LB.area || (p.position_id === 'kurir' && areaOfP(p.id) === LB.area)));
-    const abs = await inChunks(orang.map(p => p.id), x => sb.from('attendance').select('id,profile_id,tanggal,sesi,status,jam,point_id,jarak_m,catatan').in('profile_id', x).gte('tanggal', LB.dari).lte('tanggal', LB.sampai).order('id'));
+    // Kandidat: semua akun aktif sesuai filter. Jabatan "All divisi" (Super Admin, GM) hanya tampil kalau memang pernah absen.
+    const kandidat = ORG.profiles.filter(p => p.aktif && (!LB.divisi || p.division_id === LB.divisi) && (!LB.jab || p.position_id === LB.jab) && (!LB.area || (p.position_id === 'kurir' && areaOfP(p.id) === LB.area)));
+    const abs = await inChunks(kandidat.map(p => p.id), x => sb.from('attendance').select('id,profile_id,tanggal,sesi,status,jam,point_id,jarak_m,catatan').in('profile_id', x).gte('tanggal', LB.dari).lte('tanggal', LB.sampai).order('id'));
+    const punyaAbsen = new Set(abs.map(a => a.profile_id));
+    const orang = kandidat.filter(p => pos(p.position_id).cakupan !== 'semua' || punyaAbsen.has(p.id));
     const idx = {}; abs.forEach(a => idx[a.profile_id + '|' + a.tanggal + '|' + a.sesi] = a);
     const sesHari = (u, d) => R0.ses.filter(s => s.untuk === u && s.hari.includes(isoDow(d)) && s.sesi !== 'Pulang').map(s => s.sesi);
+    const baris = (p, d, s, a, wajib) => { const pl = s === 'Masuk' ? idx[p.id + '|' + d + '|Pulang'] : null;
+      return { p, tanggal: d, sesi: s, wajib, status: a ? a.status : 'Tidak absen', jam: a && a.jam ? a.jam.slice(0, 5) : '', pulang: pl && pl.jam ? pl.jam.slice(0, 5) : '',
+        titik: (a || pl) && (a || pl).point_id ? (R0.pts.find(t => t.id === (a || pl).point_id) || {}).nama || '' : '', jarak: a && a.jarak_m != null ? a.jarak_m : pl && pl.jarak_m != null ? pl.jarak_m : null,
+        catatan: a ? a.catatan || '' : '' }; };
     const detail = [];
     orang.forEach(p => {
-      const kur = p.position_id === 'kurir', mulai = kur ? (R0.pg.filter(x => x.profile_id === p.id).map(x => x.mulai).sort()[0] || LB.dari) : LB.dari;
+      const kur = p.position_id === 'kurir', global = pos(p.position_id).cakupan === 'semua';
+      const mulai = kur ? (R0.pg.filter(x => x.profile_id === p.id).map(x => x.mulai).sort()[0] || LB.dari) : LB.dari;
       for (let d = LB.dari; d <= LB.sampai && d <= TODAY; d = addD(d, 1)) {
-        if (d < mulai) continue;
-        sesHari(kur ? 'kurir' : 'staf', d).forEach(s => {
-          const a = idx[p.id + '|' + d + '|' + s]; if (!a && d === TODAY) return;
-          const pl = s === 'Masuk' ? idx[p.id + '|' + d + '|Pulang'] : null;
-          detail.push({ p, tanggal: d, sesi: s, status: a ? a.status : 'Tidak absen', jam: a && a.jam ? a.jam.slice(0, 5) : '', pulang: pl && pl.jam ? pl.jam.slice(0, 5) : '', titik: a && a.point_id ? (R0.pts.find(t => t.id === a.point_id) || {}).nama || '' : '', jarak: a && a.jarak_m != null ? a.jarak_m : null, catatan: a ? a.catatan || '' : '' });
-        });
+        const wajibList = global || d < mulai ? [] : sesHari(kur ? 'kurir' : 'staf', d);
+        wajibList.forEach(s => { const a = idx[p.id + '|' + d + '|' + s]; const pl = s === 'Masuk' ? idx[p.id + '|' + d + '|Pulang'] : null; if (!a && !pl && d === TODAY) return; detail.push(baris(p, d, s, a, true)); });
+        // Absen di hari di luar jadwal (mis. Minggu, atau Super Admin/GM) tetap tercatat DAN ikut dihitung
+        const luar = uniqArr(abs.filter(a => a.profile_id === p.id && a.tanggal === d && a.sesi !== 'Pulang').map(a => a.sesi)).filter(s => !wajibList.includes(s));
+        luar.forEach(s => detail.push(baris(p, d, s, idx[p.id + '|' + d + '|' + s], true)));
       }
     });
-    const rekap = orang.map(p => { const r = detail.filter(x => x.p === p), c = s => r.filter(x => x.status === s).length, ar = areaOfP(p.id);
-      return { p, nama: p.nama, div: div(p.division_id).nama || '', jab: pos(p.position_id).nama || '', area: areaNm(ar), branch: ar ? brNm((R0.ar.find(a => a.id === ar) || {}).branch_id) : '', wajib: r.length, hadir: c('Hadir'), izin: c('Izin'), sakit: c('Sakit'), tidak: c('Tidak absen'), pct: r.length ? c('Hadir') / r.length : null }; });
+    const rekap = orang.map(p => { const r = detail.filter(x => x.p === p), w = r.filter(x => x.wajib), c = s => w.filter(x => x.status === s).length, ar = areaOfP(p.id);
+      return { p, nama: p.nama, div: div(p.division_id).nama || 'All divisi', jab: pos(p.position_id).nama || '', area: areaNm(ar), branch: ar ? brNm((R0.ar.find(a => a.id === ar) || {}).branch_id) : '',
+        wajib: w.length, hadir: c('Hadir'), izin: c('Izin'), sakit: c('Sakit'), tidak: c('Tidak absen'), pct: w.length ? c('Hadir') / w.length : null }; });
     return { orang, detail, rekap };
   };
   $('#lbShow').onclick = () => run($('#lbShow'), async () => {
     baca(); $('#lbRes').innerHTML = '<div class="card empty">Menghitung…</div>';
-    const H = await hitung(), tot = s => H.detail.filter(x => x.status === s).length, w = H.detail.length;
+    const H = await hitung(), tot = s => H.detail.filter(x => x.wajib && x.status === s).length, w = H.detail.filter(x => x.wajib).length;
     const cols = [{ key: 'nama', label: 'Nama', render: r => `<b>${esc(r.nama)}</b>` }, { key: 'div', label: 'Divisi' }, { key: 'jab', label: 'Jabatan' }, { key: 'area', label: 'Area', render: r => esc(r.area) || '—' },
       { key: 'wajib', label: 'Wajib', num: true }, { key: 'hadir', label: 'Hadir', num: true }, { key: 'izin', label: 'Izin', num: true }, { key: 'sakit', label: 'Sakit', num: true },
       { key: 'tidak', label: 'Tidak absen', num: true, render: r => r.tidak ? `<span class="chip c-bad">${r.tidak}</span>` : '0' },
@@ -932,7 +940,7 @@ async function pageLapAbsensi(v) {
       { name: 'Rekap per orang', columns: [{ label: 'Nama', width: 26 }, { label: 'Divisi', width: 12 }, { label: 'Jabatan', width: 14 }, { label: 'Branch', width: 14 }, { label: 'Area', width: 14 }, { label: 'Wajib absen', type: 'num', width: 12 }, { label: 'Hadir', type: 'num', width: 9 }, { label: 'Izin', type: 'num', width: 9 }, { label: 'Sakit', type: 'num', width: 9 }, { label: 'Tidak absen', type: 'num', width: 12 }, { label: '% Kehadiran', type: 'pct', width: 12 }],
         rows: H.rekap.sort((a, b) => a.div.localeCompare(b.div) || a.area.localeCompare(b.area) || a.nama.localeCompare(b.nama)).map(r => [r.nama, r.div, r.jab, r.branch, r.area, r.wajib, r.hadir, r.izin, r.sakit, r.tidak, r.pct]) },
       { name: 'Detail harian', columns: [{ label: 'Tanggal', type: 'date', width: 12 }, { label: 'Hari', width: 7 }, { label: 'Nama', width: 26 }, { label: 'Divisi', width: 12 }, { label: 'Jabatan', width: 14 }, { label: 'Area', width: 14 }, { label: 'Sesi', width: 10 }, { label: 'Status', width: 12 }, { label: 'Jam absen', width: 10 }, { label: 'Jam pulang', width: 10 }, { label: 'Titik', width: 20 }, { label: 'Jarak (m)', type: 'num', width: 10 }, { label: 'Catatan', width: 30 }],
-        rows: H.detail.sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.p.nama.localeCompare(b.p.nama)).map(x => [x.tanggal, NAMA_HARI[parseD(x.tanggal).getDay()], x.p.nama, div(x.p.division_id).nama || '', pos(x.p.position_id).nama || '', areaNm(areaOfP(x.p.id)), x.sesi, x.status, x.jam, x.pulang, x.titik, x.jarak, x.catatan]) },
+        rows: H.detail.sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.p.nama.localeCompare(b.p.nama)).map(x => [x.tanggal, NAMA_HARI[parseD(x.tanggal).getDay()], x.p.nama, div(x.p.division_id).nama || 'All divisi', pos(x.p.position_id).nama || '', areaNm(areaOfP(x.p.id)), x.sesi, x.status, x.jam, x.pulang, x.titik, x.jarak, x.catatan]) },
       { name: 'Info', filter: false, freeze: false, columns: [{ label: 'Keterangan', width: 20 }, { label: 'Isi', width: 50 }], rows: [['Laporan', 'Absensi semua divisi'], ['Periode', LB.dari + ' s.d. ' + LB.sampai], ['Divisi', LB.divisi ? div(LB.divisi).nama : 'Semua'], ['Jabatan', LB.jab ? pos(LB.jab).nama : 'Semua'], ['Dibuat oleh', ME.nama], ['Dibuat pada', fmtDateTime(new Date())]] }
     ]);
     toast('Excel diunduh: ' + H.rekap.length + ' orang, ' + H.detail.length + ' baris.');
@@ -978,4 +986,3 @@ $('#logoutLink').onclick = e => { e.preventDefault(); HGAuth.logout(); };
 </script>
 </body>
 </html>
-
