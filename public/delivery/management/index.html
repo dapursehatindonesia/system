@@ -708,8 +708,8 @@ function updAbsen() {
   $('#absenBtns').innerHTML = ses.map(s => {
     const done = today.find(a => a.sesi === s.sesi);
     if (done) return `<span class="chip ${statusChip(done.status)}">${s.sesi} ${done.jam ? done.jam.slice(0, 5) : done.status}</span>`;
-    const why = !AB.camReady ? 'Kamera belum menyala' : !l.ok ? 'Lokasi belum sesuai' : '';
-    return `<button class="btn-primary" data-absen="${s.sesi}" ${why ? 'disabled' : ''} title="${why}">Absen ${s.sesi.toLowerCase()}</button>`;
+    const why = s.sesi === 'Pulang' && !today.some(a => a.sesi === 'Masuk' && a.status === 'Hadir') ? 'Absen masuk dulu' : !AB.camReady ? 'Kamera belum menyala' : !l.ok ? 'Lokasi belum sesuai' : '';
+    return `<span style="display:inline-flex;flex-direction:column;gap:4px"><button class="btn-primary" data-absen="${s.sesi}" ${why ? 'disabled' : ''} title="${why}">Absen ${s.sesi.toLowerCase()}</button>${why ? `<span class="small muted">${why}</span>` : ''}</span>`;
   }).join('');
   $('#absenBtns').querySelectorAll('[data-absen]').forEach(b => b.onclick = () => run(b, async () => {
     const lk = lokasi(); if (!lk.ok) throw new Error(lk.msg);
